@@ -27,7 +27,10 @@ object func_spark {
     println("Schema in different patterns")
     df_udf.printSchema()
     println(df_udf.schema.json)
-    df_udf.schema.fields.toSeq.foreach(println)
+    val sch_seq=df_udf.schema.fields.toSeq //print all the fields with data types associated with it.
+    println(sch_seq)
+    val sch_names=df_udf.schema.names.toSeq //print only the field names.
+    println(sch_names)
   }
 }
 
