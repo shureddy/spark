@@ -44,8 +44,8 @@ object func_spark {
     val cols = Seq[String]("id", "als_id").map(n => col(n))
     als_df.select(cols: _*).show(false)
     /*
-  * registering a temp table
-  */
+     * registering a temp table
+    */
     als_df.createOrReplaceTempView("spark_tmp")
     spark.sql("select id from spark_tmp").show(false)
   }
