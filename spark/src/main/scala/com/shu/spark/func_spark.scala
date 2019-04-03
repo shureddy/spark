@@ -32,9 +32,27 @@ object func_spark {
     val sch_names = df_udf.schema.names.toSeq //print only the field names.
     println(sch_names)
     sch_names.foreach(println)
+
+    /*
+     * select statements
+     */
+    //val cols=Array("id","udf")
+    df_udf.select('id).show(false)
+    df_udf.selectExpr("int(id) +1 as incr_1", "id", "concat(udf,'+s') as udf", "upper(udf) as upper_udf").show(false)
+    val als_df = df_udf.select($"id", df_udf("udf"), df_udf.col("id").alias("als_id"))
+    println("select data using list of cols")
+    val cols = Seq[String]("id", "als_id").map(n => col(n))
+    als_df.select(cols: _*).show(false)
+    /*
+  * registering a temp table
+  */
+    als_df.createOrReplaceTempView("spark_tmp")
+    spark.sql("select id from spark_tmp").show(false)
   }
 }
-
+/*
+ * object for creating and register as udf.
+ */
 object shared {
   def ag_case(age: Int): String = {
     if (age >= 3)
