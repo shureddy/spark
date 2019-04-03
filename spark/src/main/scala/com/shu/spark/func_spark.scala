@@ -31,6 +31,7 @@ object func_spark {
     println(sch_seq)
     val sch_names=df_udf.schema.names.toSeq //print only the field names.
     println(sch_names)
+    sch_names.foreach(println)
   }
 }
 
