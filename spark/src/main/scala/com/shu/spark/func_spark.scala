@@ -6,6 +6,9 @@ import org.apache.spark.sql.functions._
 
 import org.apache.spark._
 import com.sun.org.apache.xalan.internal.xsltc.compiler.ForEach
+import org.apache.spark.sql.types._
+import org.apache.spark.sql._
+import org.apache.spark.rdd._
 
 object func_spark {
   def main(args: Array[String]): Unit = {
@@ -43,11 +46,31 @@ object func_spark {
     println("select data using list of cols")
     val cols = Seq[String]("id", "als_id").map(n => col(n))
     als_df.select(cols: _*).show(false)
+    als_df.select(col("*")).show(false) //to select all the columns
     /*
      * registering a temp table
     */
     als_df.createOrReplaceTempView("spark_tmp")
     spark.sql("select id from spark_tmp").show(false)
+    /*
+     * create data frames
+     */
+    val df_k1 = Seq((1, "scala"), (2, "java")).toDF("id", "name")
+    df_k1.show(false)
+    val df_k2 = spark.createDataFrame(Seq((1, "scala"), (2, "java"))) //gets column names as _1,_2
+    val df_k3 = spark.createDataFrame(Seq((1, "scala"), (2, "java"))).toDF("id", "name")
+    //create an rdd with type RDD[Row]
+
+    val rdd: RDD[Row] = spark.sparkContext.parallelize(Seq(Row(1, "scala"), Row(2, "java")))
+
+    val sch = new StructType()
+      .add(StructField("id", IntegerType, true))
+      .add(StructField("name", StringType, true))
+
+    //now create dataframe using row rdd and schema sch
+    val df_k4 = spark.createDataFrame(rdd, sch)
+    df_k4.show(false)
+    df_k4.printSchema()
   }
 }
 /*
