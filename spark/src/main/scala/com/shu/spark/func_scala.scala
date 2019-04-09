@@ -60,13 +60,31 @@ object func_scala {
     println(map_kv.get("lang"))
     for ((k, v) <- map_kv) println(v, k)
     println(map_kv.keySet) //print only the keys
-    
+
     //streams
-    
-    val stream=(1 to 100).toStream
+
+    val stream = (1 to 100).toStream
     println(stream)
-    println(stream.filter(_%10==0))
-    println(stream.filter(_%10==0).toList) //here we are storing into list
+    println(stream.filter(_ % 10 == 0))
+    println(stream.filter(_ % 10 == 0).toList) //here we are storing into list
+    val t = (10, "scl", 90.98)
+    println(t._1) //access tuple elements
+    val (first, second, third) = t
+    println(first)
+
+    /*
+     * zipping
+     */
+    val sym = Array("*", "-", "*")
+    val lck = Array(5, 10, 5)
+    val pair = sym.zip(lck)
+
+    for ((k, v) <- pair) print(k * v)
+    val ke = List(1, 2, 3)
+    val va = List("a", "b", "c")
+    val zz = (ke zip (va)).toMap
+    println(zz)
+    zz.foreach(println)
 
   }
 }

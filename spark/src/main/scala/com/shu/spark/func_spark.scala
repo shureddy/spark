@@ -5,7 +5,6 @@ import org.apache.spark._
 import org.apache.spark.sql.functions._
 
 import org.apache.spark._
-import com.sun.org.apache.xalan.internal.xsltc.compiler.ForEach
 import org.apache.spark.sql.types._
 import org.apache.spark.sql._
 import org.apache.spark.rdd._
@@ -55,8 +54,10 @@ object func_spark {
     /*
      * create data frames
      */
-    val df_k1 = Seq((1, "scala"), (2, "java")).toDF("id", "name")
+    val df_k1 = Seq((1, 11, "scala"), (2, 22, "java")).toDF("id", "id_1", "name")
     df_k1.show(false)
+    df_k1.select(df_k1.columns.filter(_.startsWith("id")).map(df_k1(_)): _*).show(false) //select cols starts with id
+
     val df_k2 = spark.createDataFrame(Seq((1, "scala"), (2, "java"))) //gets column names as _1,_2
     val df_k3 = spark.createDataFrame(Seq((1, "scala"), (2, "java"))).toDF("id", "name")
     //create an rdd with type RDD[Row]
@@ -71,6 +72,31 @@ object func_spark {
     val df_k4 = spark.createDataFrame(rdd, sch)
     df_k4.show(false)
     df_k4.printSchema()
+
+    /*
+     *check the columns in df and add if the columns not presented.
+     */
+
+    val dd_1 = spark.range(10)
+    dd_1.show()
+    val req_col = Seq("c1", "c2", "c3").filterNot(dd_1.schema.fieldNames.contains).map(lit(0).as(_)) //filter not is inverse of filter and return all the columns are not present in df_1.
+    dd_1.select($"*" +: req_col: _*).show()
+
+    val emp_df = spark.emptyDataFrame //create an empty dataframe
+    emp_df.show()
+    val req_cols = Seq("c1", "c2", "c3")
+    /*
+     * check the columns presented in the df or add new columns with default values.
+     */
+    val df_req = req_cols.foldLeft(df) {
+      case (d, c) =>
+        if (d.columns.contains(c)) {
+          d
+        } else {
+          d.withColumn(c, lit("i'm new"))
+        }
+    }
+    df_req.show(false)
   }
 }
 /*
