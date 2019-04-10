@@ -97,6 +97,23 @@ object func_spark {
         }
     }
     df_req.show(false)
+
+    /*
+     * filter in an array
+     */
+
+    val df_ar_fil = spark.sparkContext.parallelize(Seq((("ID1", "A", 1)), (("ID1", "B", 5)), (("ID2", "A", 12)),
+      (("ID3", "A", 3)), (("ID3", "B", 3)), (("ID3", "C", 5)), (("ID4", "A", 10))), 2).toDF("ID", "Type", "Value")
+    df_ar_fil.show(false)
+    df_ar_fil.groupBy('ID).agg(collect_list('Type).as("Types"))
+      .select('ID, 'Types).where((size('Types) === 1).and(array_contains('Types, "A"))).show(false)
+
+    df_ar_fil.createOrReplaceTempView("tmp_ar")
+    spark.sql("select * from tmp_ar").show(false)
+    spark.sql("""select a.ID, a.Type,a.Value from tmp_ar as a, 
+                  (select ID, count(*) as cnt_val from tmp_ar group by ID) b 
+                  where a.ID = b.ID and (a.Type=="A" and b.cnt_val ==1)""").show(false)
+
   }
 }
 /*

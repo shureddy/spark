@@ -85,6 +85,37 @@ object func_scala {
     val zz = (ke zip (va)).toMap
     println(zz)
     zz.foreach(println)
+    /*
+ 		 * assign only required values to variables
+  		*/
+    val t1 = (1, 3.14, "j1")
+    val (first1, second1, _) = t1 //just assigns first (_1),second (_2) values and ignore rest.
+    println("mew", second1)
 
+    /*
+     * Lists
+     */
+    //different forms of defining lists.
+    val l1 = List(1, 2, 3)
+    val l2 = Traversable(1, 2, 3)
+    val l3 = Iterable(1, 2, 3)
+    val l4 = Seq(1, 2, 3)
+    val l5= "a"::"b"::"c"::Nil
+    println(l1, l2, l3, l4, l5)
+    //concat lists
+    val l_odd = List(1, 3, 5, 7)
+    val l_even = List(2, 4, 6)
+    val l_num = l_odd ++ l_even
+    println(l_num)
+    val l_digit = 0 :: l_num
+    println(l_digit)
+    println(l_digit.contains(1))
+    println(l_digit.tail)
+    println(l_digit.last)
+    println(l_digit.lastIndexOf(4))
+    println(l_digit.mkString("**"))
+    println(l_digit.size)
+    println(l_digit.count(x => x*x >2)) //for each element multiply with it (x*x) and do count only if the x*x >2
+    
   }
 }
