@@ -100,7 +100,7 @@ object func_scala {
     val l2 = Traversable(1, 2, 3)
     val l3 = Iterable(1, 2, 3)
     val l4 = Seq(1, 2, 3)
-    val l5= "a"::"b"::"c"::Nil
+    val l5 = "a" :: "b" :: "c" :: Nil
     println(l1, l2, l3, l4, l5)
     //concat lists
     val l_odd = List(1, 3, 5, 7)
@@ -115,7 +115,40 @@ object func_scala {
     println(l_digit.lastIndexOf(4))
     println(l_digit.mkString("**"))
     println(l_digit.size)
-    println(l_digit.count(x => x*x >2)) //for each element multiply with it (x*x) and do count only if the x*x >2
-    
+    println(l_digit.count(x => x * x > 2)) //for each element multiply with it (x*x) and do count only if the x*x >2
+
+    println(List(1, 2, 3) intersect List(2, 3, 4))
+    println(List(1, 2, 3) diff List(2, 3, 4))
+    println(List(1, 2, 3, 4).permutations.toList)
+    println(List(1, 2, 3, 4).combinations(2).toList)
+    println(List(List(1, 2), List(3, 4)).flatten)
+
+    //conditional
+
+    val c1 = 0
+    val c_res = if (c1 > 0) 1 else -1
+    println(c_res)
+    println(if (c1 > 0) "Yes" else "No")
+    println(if (c1 > 0) "yes" else ()) //op is ()
+    println(if (c1 == 0) 1) //ignores all else and prints out ()
+    //loop
+    var sum = 0
+    while (sum < 10) sum += 1
+    println(sum) //prints only 10 as while loop loops over until the condition is false
+    sum = 0
+    var k = 0
+    while (k < 4) {
+      sum += k * k
+      k += 1
+    }
+    println(sum, k)
+
+    sum = 0
+    for (i <- "Hello") sum += i
+    println(sum)
+
+    for (i <- 1 to 3; j <- 1 to 3) print(10 * i + j + " ")
+    sum=0
+    for (i <- 1 to 3; from =4-1; j <- from to 3) print((10 * i+j) + " ")
   }
 }

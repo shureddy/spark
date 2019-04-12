@@ -1,9 +1,7 @@
 package com.shu.spark
 import org.apache.spark.sql.SparkSession
 import org.apache.spark._
-
 import org.apache.spark.sql.functions._
-
 import org.apache.spark._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql._
@@ -105,15 +103,41 @@ object func_spark {
     val df_ar_fil = spark.sparkContext.parallelize(Seq((("ID1", "A", 1)), (("ID1", "B", 5)), (("ID2", "A", 12)),
       (("ID3", "A", 3)), (("ID3", "B", 3)), (("ID3", "C", 5)), (("ID4", "A", 10))), 2).toDF("ID", "Type", "Value")
     df_ar_fil.show(false)
-    df_ar_fil.groupBy('ID).agg(collect_list('Type).as("Types"))
-      .select('ID, 'Types).where((size('Types) === 1).and(array_contains('Types, "A"))).show(false)
 
     df_ar_fil.createOrReplaceTempView("tmp_ar")
     spark.sql("select * from tmp_ar").show(false)
     spark.sql("""select a.ID, a.Type,a.Value from tmp_ar as a, 
                   (select ID, count(*) as cnt_val from tmp_ar group by ID) b 
                   where a.ID = b.ID and (a.Type=="A" and b.cnt_val ==1)""").show(false)
+    /*
+     * (or) to get same output as above we need to join to df_ar_fil on
+     * id,types(remove []brackets) and select id,type,value
+     */
+    df_ar_fil.groupBy('ID).agg(collect_list('Type).as("Types"))
+      .select('ID, 'Types).where((size('Types) === 1).and(array_contains('Types, "A"))).show(false)
+    println("**-" * 100)
 
+          /*
+           * date and timestamp functions
+           */
+    val df_dt = spark.sparkContext
+      .parallelize(Seq(("1", "scala"), ("1", "java"), ("1", "python")))
+      .toDF("id", "lang")
+    //df_dt.show(false)
+    df_dt.withColumn("today_date", lit(current_date)) //today date
+      .withColumn("sub_year", lit(add_months(current_date, -12)).cast(DateType)) //substract year from today and cast to date type
+      .withColumn("time_now", lit(current_timestamp).cast(TimestampType)) //current timestamp in yyyy-MM-dd hh:mm:ss.SSS
+      .withColumn("epoch time", lit(unix_timestamp(current_timestamp()))) //get epoch time
+      .withColumn("format_date", lit(date_format(current_timestamp(), "yyyy/MM/dd HH/mm/ss/SSS")))
+      .withColumn("Year", lit(year(current_timestamp())))
+      .withColumn("month", lit(month(current_timestamp())))
+      .withColumn("date", lit(to_date(current_timestamp())))
+      .withColumn("day", lit(dayofmonth(current_timestamp())))
+      .withColumn("yesterday", lit(date_sub(current_date, 1)))
+      .withColumn("tomorrow", lit(date_add(current_date, 1)))
+      .withColumn("date_difference", datediff(current_timestamp, lit("2018-04-11 21:56:45.882").cast(TimestampType)))
+      .withColumn("timestamp_difference", unix_timestamp(current_timestamp) - unix_timestamp(lit("2018-04-11 21:56:45.882").cast(TimestampType)))
+      .show(false)
   }
 }
 /*
