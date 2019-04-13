@@ -117,7 +117,7 @@ object func_spark {
       .select('ID, 'Types).where((size('Types) === 1).and(array_contains('Types, "A"))).show(false)
     println("**-" * 100)
 
-          /*
+    /*
            * date and timestamp functions
            */
     val df_dt = spark.sparkContext
@@ -138,6 +138,27 @@ object func_spark {
       .withColumn("date_difference", datediff(current_timestamp, lit("2018-04-11 21:56:45.882").cast(TimestampType)))
       .withColumn("timestamp_difference", unix_timestamp(current_timestamp) - unix_timestamp(lit("2018-04-11 21:56:45.882").cast(TimestampType)))
       .show(false)
+    /*
+       * Array operations
+       */
+    val df_arr = Seq(
+      (1, Array("Hi there", "Hello there")),
+      (2, Array("Bye now")),
+      (3, Array("Thank you", "Thanks", "Many thanks")))
+      .toDF("id", "sentences")
+    df_arr.show(false)
+    /*
+     * posexplode is with position column added to the explode
+     */
+    val df_pos_exp = df_arr.select($"id", posexplode('sentences))
+                        .select(concat('id, lit(":"), 'pos) as "id", $"col" as "sentences")
+    df_pos_exp.show(false)
+    /*
+     * explode dont add the position column
+     */
+    val df_exp=df_arr.select('id,explode('sentences))
+    df_exp.show(false)
+
   }
 }
 /*

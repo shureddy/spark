@@ -1,6 +1,8 @@
 package com.shu.spark
 
 import scala.collection.mutable.ArrayBuffer
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 object func_scala {
   def main(args: Array[String]): Unit = {
@@ -150,5 +152,9 @@ object func_scala {
     for (i <- 1 to 3; j <- 1 to 3) print(10 * i + j + " ")
     sum=0
     for (i <- 1 to 3; from =4-1; j <- from to 3) print((10 * i+j) + " ")
+    println()
+    println("current timestamp: " + LocalDateTime.now())
+    val ts_str=LocalDateTime.now().toString()
+    println(LocalDateTime.parse(ts_str,DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")))
   }
 }
