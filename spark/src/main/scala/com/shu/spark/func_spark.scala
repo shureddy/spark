@@ -139,8 +139,8 @@ object func_spark {
       .withColumn("timestamp_difference", unix_timestamp(current_timestamp) - unix_timestamp(lit("2018-04-11 21:56:45.882").cast(TimestampType)))
       .show(false)
     /*
-       * Array operations
-       */
+     * Array operations
+     */
     val df_arr = Seq(
       (1, Array("Hi there", "Hello there")),
       (2, Array("Bye now")),
@@ -150,14 +150,43 @@ object func_spark {
     /*
      * posexplode is with position column added to the explode
      */
-    val df_pos_exp = df_arr.select($"id", posexplode('sentences))
-                        .select(concat('id, lit(":"), 'pos) as "id", $"col" as "sentences")
+    val df_pos_exp = df_arr.select($"id", posexplode('sentences).as("Position" :: "Column" :: Nil))
+      .select(concat('id, lit(":"), 'Position) as "id", $"Column" as "sentences")
     df_pos_exp.show(false)
     /*
      * explode dont add the position column
      */
-    val df_exp=df_arr.select('id,explode('sentences))
+    val df_exp = df_arr.select('id, explode('sentences))
     df_exp.show(false)
+    /*
+     * absolute value
+     */
+    val df_func = spark.sparkContext.parallelize(
+      Seq(
+        (-10, "we", List("iii", "lop", "lop", "lop")),
+        (20, "he", List("iii", "lop", "lop", "lop")),
+        (20, "he", List("iii", "lop", "lop", "lop")),
+        (20, "he", List("iii", "lop", "lop", "lop")))).toDF("id", "name", "arr")
+    /*
+		 * print records in vertical..
+ 		*/
+    df_func.withColumn("abs", abs('id))
+      .groupBy('id)
+      .agg(countDistinct('name).as("cd"), count('name).as('c))
+      .select('id, 'cd, 'c,
+        when('c <= 3, "less than 3").otherwise("greater than 3").alias("case_stmt"))
+      .show(10, 1000, true)
+    df_func.withColumn("abs", abs('id))
+      .groupBy('id)
+      .agg(countDistinct('name).as("cd"), count('name).as('c))
+      .select('id, 'cd, 'c,
+        when('c <= 3, "less than 3").otherwise("greater than 3").alias("case_stmt"))
+      .show(10, true) //print in table format
+    /*
+     * explain the logical plan.
+     */
+      df_func.explain()
+      df_func.explain(true) //true for extended plan.
 
   }
 }
