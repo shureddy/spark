@@ -150,11 +150,46 @@ object func_scala {
     println(sum)
 
     for (i <- 1 to 3; j <- 1 to 3) print(10 * i + j + " ")
-    sum=0
-    for (i <- 1 to 3; from =4-1; j <- from to 3) print((10 * i+j) + " ")
+    sum = 0
+    for (i <- 1 to 3; from = 4 - 1; j <- from to 3) print((10 * i + j) + " ")
     println()
     println("current timestamp: " + LocalDateTime.now())
-    val ts_str=LocalDateTime.now().toString()
-    println(LocalDateTime.parse(ts_str,DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")))
+    val ts_str = LocalDateTime.now().toString()
+    //println(LocalDateTime.parse(ts_str,DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")))
+    //Expressions
+    val myvar = 5
+    val cal = {
+      val pi = 3.14; pi * myvar
+    }
+    println(cal)
+    val num = 2
+    val dbt = if (num % 2 == 0) { "divide by 2" } else (None)
+    println(dbt)
+
+    //Case statement
+
+    val lt = "linux"
+    val lty = lt match {
+      case "Dell"  => "windows"
+      case "Apple" |"apple" => "Mac"
+      case nothingMatches if nothingMatches == "linux" => "lnx" //going through default and making a check
+      case nothingMatches       => "pengwin" //or we can also use `case nothingMatches => "linux"`
+    }
+    println(lty)
+    
+    //down casting-pattern variables
+    val tv:Any=true
+    val typ_var=tv match{
+      case tv:Int => "int"
+      case tv:String => "str"
+      case tv:Double => "dbl"
+      case _=> "Any"
+    }
+    println(typ_var)
+    
+    //closurs.. function -> returns value; method -> doesn't return value
+    var vl=3
+    val clsr= (x:Int) => x+vl //annonymous function
+    println("clsr value " + clsr(5))
   }
 }

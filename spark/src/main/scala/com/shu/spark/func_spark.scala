@@ -110,6 +110,15 @@ object func_spark {
                   (select ID, count(*) as cnt_val from tmp_ar group by ID) b 
                   where a.ID = b.ID and (a.Type=="A" and b.cnt_val ==1)""").show(false)
     /*
+     * swap the schemas of df's
+     */
+    val df_ar_fil2 = spark.sparkContext.parallelize(Seq(("ID3", "A", 2), ("ID3", "C", 4)), 2).toDF("ID1", "Type1", "va1")
+    df_ar_fil2.show()
+    
+    //to df_ar_fil2 dataframe add df_ar_fil schema to it using spark.createdataframe function.
+    spark.time(spark.createDataFrame(df_ar_fil2.rdd, df_ar_fil.schema).show(false)) //caluculate time taken for this action to perform
+    
+    /*
      * (or) to get same output as above we need to join to df_ar_fil on
      * id,types(remove []brackets) and select id,type,value
      */
@@ -185,8 +194,8 @@ object func_spark {
     /*
      * explain the logical plan.
      */
-      df_func.explain()
-      df_func.explain(true) //true for extended plan.
+    df_func.explain()
+    df_func.explain(true) //true for extended plan.
 
   }
 }
