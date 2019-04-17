@@ -156,6 +156,12 @@ object func_spark {
       (3, Array("Thank you", "Thanks", "Many thanks")))
       .toDF("id", "sentences")
     df_arr.show(false)
+    println("^^" * 30)
+    /*
+     * check if array contains specific value
+     */
+    df_arr.filter(array_contains('sentences, "Thanks")).selectExpr("*").show(false)
+    println("^^" * 30)
     /*
      * posexplode is with position column added to the explode
      */
@@ -175,7 +181,7 @@ object func_spark {
         (-10, "we", List("iii", "lop", "lop", "lop")),
         (20, "he", List("iii", "lop", "lop", "lop")),
         (20, "he", List("iii", "lop", "lop", "lop")),
-        (20, "he", List("iii", "lop", "lop", "lop")))).toDF("id", "name", "arr")
+        (20, "he", List("iii", "lop", "lop", "lap")))).toDF("id", "name", "arr")
     /*
 		 * print records in vertical..
  		*/
@@ -195,8 +201,15 @@ object func_spark {
      * explain the logical plan.
      */
     df_func.explain()
-    df_func.explain(true) //true for extended plan.
-
+    df_func.explain(true) //true for extended plan
+    df_func.withColumn("leng", length(df_func("name"))).show(false) //find the length of the column
+    df_func.select('arr).distinct().show(false) //find the distinct values
+    /*
+     * collect_list(have duplicates) and collect_set(no duplicates)
+     */
+    df_func.groupBy('id)
+            .agg(collect_list('name).as('cl_name),collect_set('name).as('cs_name))
+            .select('id,'cl_name,'cs_name).show(false)
   }
 }
 /*
