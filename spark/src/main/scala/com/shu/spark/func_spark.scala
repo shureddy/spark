@@ -114,10 +114,10 @@ object func_spark {
      */
     val df_ar_fil2 = spark.sparkContext.parallelize(Seq(("ID3", "A", 2), ("ID3", "C", 4)), 2).toDF("ID1", "Type1", "va1")
     df_ar_fil2.show()
-    
+
     //to df_ar_fil2 dataframe add df_ar_fil schema to it using spark.createdataframe function.
     spark.time(spark.createDataFrame(df_ar_fil2.rdd, df_ar_fil.schema).show(false)) //caluculate time taken for this action to perform
-    
+
     /*
      * (or) to get same output as above we need to join to df_ar_fil on
      * id,types(remove []brackets) and select id,type,value
@@ -203,13 +203,17 @@ object func_spark {
     df_func.explain()
     df_func.explain(true) //true for extended plan
     df_func.withColumn("leng", length(df_func("name"))).show(false) //find the length of the column
-    df_func.select('arr).distinct().show(false) //find the distinct values
+    //df_func.select('arr).distinct().show(false) //find the distinct values
+    df_func.select("*").distinct().show(false)
+    df_func.show(false)
+    df_func.createOrReplaceTempView("tt")
+    spark.sql("select distinct * from tt").show(false)
     /*
      * collect_list(have duplicates) and collect_set(no duplicates)
      */
     df_func.groupBy('id)
-            .agg(collect_list('name).as('cl_name),collect_set('name).as('cs_name))
-            .select('id,'cl_name,'cs_name).show(false)
+      .agg(collect_list('name).as('cl_name), collect_set('name).as('cs_name))
+      .select('id, 'cl_name, 'cs_name).show(false)
   }
 }
 /*

@@ -191,5 +191,41 @@ object func_scala {
     var vl=3
     val clsr= (x:Int) => x+vl //annonymous function
     println("clsr value " + clsr(5))
+    
+    val cmd_arg="-"
+    //======Define a func and call in match statement======
+    def usageFunc():String={
+      "wrong arg use either --v or --version"
+    }
+    
+    val arg_mnt= cmd_arg match {
+      case "-v" | "--version" => "version is 2.3.4"
+      case "-h" | "--help" => "enter either -v or --version to get version"
+      case _ => usageFunc() //func will return string
+    }
+    println(arg_mnt)
+    println(for (i <- 1 to 10; if(i % 2 ==0)) yield i)
+    for (i <- 1 to 10) yield if(i %2 ==0)  println(i)
+    val dd=new dd()
+    dd.delay(System.nanoTime())
+    dd.mult_strs("h","l","p")
+    var cnt=3
+    dd.slp(() => {println("cnt");println("cnt --"); cnt -=1; cnt >0}) //finite loop until cnt >0
+    dd.slp(()=>true) //infinite loop as we are passing true all the time
+  }
+}
+class dd{
+  def delay(t:Long)={
+    println("hia" + t)
+    println(System.nanoTime())
+  }
+  def mult_strs(args:String*)={
+    args.zipWithIndex.foreach{case (k,v) => println(s"$v: $k" )}
+  }
+  def slp(callback:()=> Boolean){
+    while(callback()){
+      Thread sleep 1000
+      println("sleep for 1 sec")
+    }
   }
 }
