@@ -19,6 +19,7 @@ object streaming {
 
     wrd.foreachRDD { rdd =>
       val spark = SparkSession.builder().getOrCreate()
+      spark.sparkContext.setLogLevel("ERROR")
       import spark.implicits._
       val df = rdd.toDF("word", "count")
       println("hi")
