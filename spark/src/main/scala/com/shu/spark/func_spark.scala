@@ -214,6 +214,25 @@ object func_spark {
     df_func.groupBy('id)
       .agg(collect_list('name).as('cl_name), collect_set('name).as('cs_name))
       .select('id, 'cl_name, 'cs_name).show(false)
+
+    //===========create map============
+    val df_m = Seq(("Texas", "Usa"), ("Andhra", "India")).toDF("state", "country")
+    df_m.show(false)
+    val df_map = df_m.map { df => (df.getString(0), df.getString(1)) }.collect().toMap
+    df_map.foreach(println)
+    println(df_map)
+
+    //===========using regular expression extract=============
+    val df_reg = Seq(("""192.167.56.1-45195 " GET \docsodb.sp.ip \..\"""")).toDF("value")
+    df_reg.show(false)
+    val re = """(.*)-(.*?)\s+"\s+(\w+)\s+\\(.*?)\s+\\""" //matching regex to extract capture groups
+    df_reg.select(
+      regexp_extract('value, re, 1).alias("ip_addr"),
+      regexp_extract('value, re, 2).alias("port"),
+      regexp_extract('value, re, 3).alias("method"),
+      regexp_extract('value, re, 4).alias("desc"))
+      .show(false)
+
   }
 }
 /*
