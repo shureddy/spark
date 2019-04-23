@@ -233,6 +233,41 @@ object func_spark {
       regexp_extract('value, re, 4).alias("desc"))
       .show(false)
 
+    //==========filter using and or operators==========
+    val dd = Seq(("1", "SCL"), ("2", "Hv"), ("3", "scl"), ("4", "scl")).toDF("id", "nam")
+    dd.show(false)
+    dd.filter(('id > 1) && ('id < 4)).select("*").show(false)
+    dd.filter(('id === 1) || ('id === 2)).select("*").show(false)
+    
+    //-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
+    /*
+     *UDF
+     */
+    def lower(nam: String): String = {
+      nam.toLowerCase()
+    }
+
+    def cnct(id: String, nam: String): String = {
+      id.toString() + nam
+    }
+    
+    //===register udf to use in dataframe api
+    val reg_udf = udf[String, String](lower)
+    val cnct_udf = udf[String, String, String](cnct)
+    
+    dd.withColumn("lower", reg_udf('nam))
+      .withColumn("cnct", cnct_udf('id, 'nam))
+      .select("*")
+      .show(false)
+    println("--*--" * 10)
+
+    //register udf to use in sparksql
+    spark.sqlContext.udf.register("udf_dd", lower _)
+    dd.createOrReplaceTempView("tmp")
+    spark.sql("select id,nam,udf_dd(nam) lower_case from tmp").show(false)
+    
+    //-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
+
   }
 }
 /*
