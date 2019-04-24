@@ -238,7 +238,7 @@ object func_spark {
     dd.show(false)
     dd.filter(('id > 1) && ('id < 4)).select("*").show(false)
     dd.filter(('id === 1) || ('id === 2)).select("*").show(false)
-    
+
     //-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
     /*
      *UDF
@@ -250,11 +250,11 @@ object func_spark {
     def cnct(id: String, nam: String): String = {
       id.toString() + nam
     }
-    
+
     //===register udf to use in dataframe api
     val reg_udf = udf[String, String](lower)
     val cnct_udf = udf[String, String, String](cnct)
-    
+
     dd.withColumn("lower", reg_udf('nam))
       .withColumn("cnct", cnct_udf('id, 'nam))
       .select("*")
@@ -265,9 +265,53 @@ object func_spark {
     spark.sqlContext.udf.register("udf_dd", lower _)
     dd.createOrReplaceTempView("tmp")
     spark.sql("select id,nam,udf_dd(nam) lower_case from tmp").show(false)
-    
-    //-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 
+    /*
+     * join and cross joins
+     */
+
+    val df_cj, df_cj1 = Seq(
+      ("HL_13203", "DELIVERED", 3226),
+      ("HL_13203", "UNSEEN", 249),
+      ("HL_13203", "UNDELIVERED", 210),
+      ("HL_13203", "ASSIGNED", 2),
+      ("HL_14108", "DELIVERED", 3083),
+      ("HL_14108", "UNDELIVERED", 164),
+      ("HL_14108", "PICKED", 1))
+      .toDF("code", "status", "count")
+
+    //======alias the dataframe and use alias name in dataframe
+    df_cj.alias("f")
+      .join(df_cj1.alias("s"), ($"f.code" === $"s.code" && $"f.status" === $"s.status"))
+      .show()
+
+    val df_sc = df_cj.select('status.as("st_c")).distinct()
+    val df_co = df_cj.select('code.as("c")).distinct()
+
+    //====cross join to get all status to code
+    val crs_df = df_sc.crossJoin(df_co)
+
+    //=====left join and fill null with 0
+    crs_df.alias("f_d")
+      .join(df_cj.alias("s_d"), ($"f_d.c" === $"s_d.code" && $"f_d.st_c" === $"s_d.status"), "left")
+      .select("st_c", "c", "count").na.fill(0)
+      .show(false)
+
+      /*
+       * replace empty whitespaces with null
+       */
+    val df_ws = Seq((" "), ("1"), ("3")).toDF("id")
+    df_ws.show(false)
+    
+    //====case stament to check if the id trim+length 0 (or) id =1 then replace with null otherwise id
+    df_ws.withColumn("id", when((length(trim('id)) === 0 || 'id === 1), lit(null))
+         .otherwise('id))
+         .select("*")
+         .filter('id.isNull)
+         .show(false)
+
+     //========check length of column
+    df_ws.select(length(trim('id)).alias("len"), 'id).show(false)
   }
 }
 /*
