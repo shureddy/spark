@@ -297,21 +297,75 @@ object func_spark {
       .select("st_c", "c", "count").na.fill(0)
       .show(false)
 
-      /*
+    /*
        * replace empty whitespaces with null
        */
     val df_ws = Seq((" "), ("1"), ("3")).toDF("id")
     df_ws.show(false)
-    
+
     //====case stament to check if the id trim+length 0 (or) id =1 then replace with null otherwise id
     df_ws.withColumn("id", when((length(trim('id)) === 0 || 'id === 1), lit(null))
-         .otherwise('id))
-         .select("*")
-         .filter('id.isNull)
-         .show(false)
+      .otherwise('id))
+      .select("*")
+      .filter('id.isNull)
+      .show(false)
 
-     //========check length of column
+    //========check length of column
     df_ws.select(length(trim('id)).alias("len"), 'id).show(false)
+
+    /*
+     * concat array and take n elements,head,tail
+     */
+    val dd_ss = Seq((1, Seq("a", "b", "c")), (1, Seq("a", "b", "c"))).toDF("id", "arr")
+    val dd_ss1 = Seq((1, Seq("a", "b", "c")), (1, Seq("a", "b", "c"))).toDF("id", "arr")
+
+    //========get position of letter/character=========
+    dd_ss.show(false)
+    dd_ss.withColumn("position", instr('arr.cast("string"), "["))
+      .selectExpr("*", "length(string(arr)) as length", "id * 10 as mul") //get the length of the array of string
+      .show(10, false)
+
+    //get only the tail from the list returns list
+    def tal = udf {
+      (f: Seq[String], l: Seq[String]) => (f ++ l).tail
+    }
+
+    //get only the head from the list return as string
+    def hed = udf {
+      (f: Seq[String], l: Seq[String]) => (f ++ l).tail
+    }
+
+    //get only the first n elements and returns list
+    def tak(n: Int) = udf {
+      (f: Seq[String], l: Seq[String]) => (f ++ l).take(n)
+    }
+
+    val nw_dd = dd_ss.alias("d").join(
+      dd_ss1.alias("ds"), Seq("id")).
+      select(
+        'id,
+        tal(dd_ss("arr"), dd_ss1("arr")).alias("tail"),
+        hed(dd_ss("arr"), dd_ss1("arr")).as("head"),
+        tak(4)(dd_ss("arr"), dd_ss1("arr")).as("take"))
+    nw_dd.show(false)
+
+    /*
+     * filter not null
+     */
+
+    val df_nn = Seq((Some(1), None), (Some(2), Some(4)), (None, None))
+      .toDF("id", "name")
+
+    val df_nul = Seq((null.asInstanceOf[String], null.asInstanceOf[String]), ("ll", "ll"))
+      .toDF("id", "name")
+
+    //=========filter condition apply on all columns with not null operation=========
+    val fil_cond = df_nul.columns.map(x => col(x).isNotNull).reduce(_ && _)
+    df_nul.filter(fil_cond).show(false)
+
+    //===========not null===========
+    df_nul.filter('id.isNotNull).show(false)
+
   }
 }
 /*
