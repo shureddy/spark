@@ -366,6 +366,55 @@ object func_spark {
     //===========not null===========
     df_nul.filter('id.isNotNull).show(false)
 
+    /*
+     * create named_struct(json) column
+     */
+    val dd_ns = Seq(("1", "ss"), ("2", "bb")).toDF("id", "nn")
+
+    //======convert all columns to json============
+    dd_ns.select('id).toJSON.toDF("jsn").show()
+
+    //=====to convert only specific columns to json =========
+    dd_ns.withColumn("dd", to_json(struct('id.alias("i")))).show(false)
+
+    dd_ns.createOrReplaceTempView("ll")
+    spark.sql("""select to_json(struct(id)) from ll""").show(false)
+
+    //=====named_Struct,struct in spark scala
+    dd_ns.selectExpr("named_struct('i',id) as jsn", "struct(id) as str")
+
+    /*
+     * check elements based on array
+     */
+    val df1 = Seq((1, 67), (2, 77), (3, 56), (4, 90)).toDF("soc", "ages")
+    val z = Array(90, 56, 67)
+    df1.withColumn(
+      "flag", when('ages.isin(z: _*), "in Z array")
+        .otherwise("not in Z array"))
+      .show(false)
+
+    /*
+     * count rows on each partition
+     */
+    val dd_p = spark.sparkContext.parallelize(Seq(("1", "oi"), ("3", "i")), 10).toDF("id", "nam")
+
+    //=====all partitions with number of rows======
+    dd_p.rdd
+      .mapPartitionsWithIndex { case (i, rows) => Iterator((i, rows.size)) }
+      .toDF("partition_number", "rows")
+      .show(false)
+
+    //====only prints nonempty partitions with count=====
+    dd_p.groupBy(spark_partition_id().alias("partition_id"))
+      .count()
+      .show(false)
+      
+    /*
+     * get the execution time
+     */
+      spark.time(
+      dd_p.groupBy('id).agg(collect_list("nam").as("cl")).select("*").show(false)    
+      )
   }
 }
 /*
