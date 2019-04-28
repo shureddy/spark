@@ -6,11 +6,12 @@ import org.apache.spark._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql._
 import org.apache.spark.rdd._
+import org.apache.spark.sql.expressions.Window
 
 object func_spark {
   def main(args: Array[String]): Unit = {
     val spark = SparkSession
-      .builder().master("local[*]")
+      .builder().master("local")
       .appName("Spark SQL basic example")
       .getOrCreate()
     spark.sparkContext.setLogLevel("ERROR")
@@ -408,13 +409,52 @@ object func_spark {
     dd_p.groupBy(spark_partition_id().alias("partition_id"))
       .count()
       .show(false)
-      
+
     /*
      * get the execution time
      */
-      spark.time(
-      dd_p.groupBy('id).agg(collect_list("nam").as("cl")).select("*").show(false)    
-      )
+    spark.time(
+      dd_p.groupBy('id).agg(collect_list("nam").as("cl")).select("*").show(false))
+
+    /*
+     * Sortby/orderby columns
+     */
+    dd_p.sort(desc("id"), desc("nam")).show(false)
+    dd_p.orderBy('id asc, 'nam.desc).show(false)
+
+    /*
+     * get random values for each rows
+     */
+    val rnd_df = Seq(("a", 1), ("b", 2), ("c", 3)).toDF("id", "ltr")
+    rnd_df.withColumn("rand", lit(rand())).show(false)
+
+    //get static rand value
+    rnd_df.withColumn("ran", lit(scala.util.Random.nextDouble())).show(false)
+
+    /*
+     * Check if HDFS file exists
+     */
+    val conf_hd = spark.sparkContext.hadoopConfiguration
+    val obj_hdfs = org.apache.hadoop.fs.FileSystem.get(conf_hd)
+    val exists = obj_hdfs.exists(new org.apache.hadoop.fs.Path("/user/ymuppi1/orders.txt"))
+    println(exists)
+
+    /*
+     * exceptall join
+     */
+    val ea = Seq((1, "a"), (2, "a"),(2, "a"),(2, "a"), (2, "b"), (3, "c")).toDF("x", "y")
+    val ea1 = Seq((1, "a"), (1, "a")).toDF("x", "y")
+    ea.exceptAll(ea1).show(false)
+
+    
+    /*
+     * row_number,rank,dense_rank
+     */
+    
+    ea.withColumn("row_number",row_number().over(Window.partitionBy('y).orderBy('x))).show(false)
+    ea.withColumn("rank",rank().over(Window.orderBy('x))).show(false)
+    ea.withColumn("dense_rank",dense_rank().over(Window.orderBy('x))).show(false)
+
   }
 }
 /*
