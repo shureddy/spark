@@ -174,6 +174,32 @@ object func_spark {
      */
     val df_exp = df_arr.select('id, explode('sentences))
     df_exp.show(false)
+
+    val df_op = spark.sparkContext.parallelize(Seq(
+      ("a", 1, 2, 3),
+      ("b", 4, 6, 5)))
+      .toDF("value", "id1", "id2", "id3")
+
+    val ref_op = spark.sparkContext.parallelize(Seq(
+      (1, "apple", "fruit"),
+      (2, "banana", "fruit"),
+      (3, "cat", "animal"),
+      (4, "dog", "animal"),
+      (5, "elephant", "animal"),
+      (6, "Flight", "object")))
+      .toDF("id", "descr", "parent")
+
+    val dfNew = df_op.withColumn("id", explode(array("id1", "id2", "id3")))
+      .select("id", "value")
+
+    ref_op.join(dfNew, Seq("id"))
+      .groupBy("value")
+      .agg(
+        concat_ws("+", collect_list("descr")) as "desc",
+        concat_ws("+", collect_list("parent")) as "parent")
+      .drop("value")
+      .show()
+
     /*
      * absolute value
      */
@@ -311,6 +337,11 @@ object func_spark {
       .filter('id.isNull)
       .show(false)
 
+    println("98x" * 10)
+    df_ws.select(regexp_replace('id, "^\\s+$", "NA")).show(false)
+    //df_ws.selectExpr("id","regexp_replace(id, '^\\s+$','NA')").show(false)
+    df_ws.createOrReplaceTempView("df")
+    spark.sql("select id,case when length(trim(id)) == 0 then 'NA' else id end,regexp_replace(id,'^(\\s+)$','NA') id2 from df").show(false)
     //========check length of column
     df_ws.select(length(trim('id)).alias("len"), 'id).show(false)
 
@@ -442,19 +473,46 @@ object func_spark {
     /*
      * exceptall join
      */
-    val ea = Seq((1, "a"), (2, "a"),(2, "a"),(2, "a"), (2, "b"), (3, "c")).toDF("x", "y")
+    val ea = Seq((1, "a"), (2, "a"), (2, "a"), (2, "a"), (2, "b"), (3, "c")).toDF("x", "y")
     val ea1 = Seq((1, "a"), (1, "a")).toDF("x", "y")
     ea.exceptAll(ea1).show(false)
 
-    
     /*
      * row_number,rank,dense_rank
      */
-    
-    ea.withColumn("row_number",row_number().over(Window.partitionBy('y).orderBy('x))).show(false)
-    ea.withColumn("rank",rank().over(Window.orderBy('x))).show(false)
-    ea.withColumn("dense_rank",dense_rank().over(Window.orderBy('x))).show(false)
 
+    ea.withColumn("row_number", row_number().over(Window.partitionBy('y).orderBy('x))).show(false)
+    ea.withColumn("rank", rank().over(Window.orderBy('x))).show(false)
+    ea.withColumn("dense_rank", dense_rank().over(Window.orderBy('x))).show(false)
+
+    /*
+     * typed lit,map
+     */
+    ea.withColumn("da", typedLit(Map("foo" -> 1))).show(false)
+    ea.withColumn("tl", typedLit("foo", 1, 2)).show(false)
+    ea.withColumn("map", map(lit("id"), lit(1))).show(false)
+
+    //=====lookup map value and add to column======
+    val lookup_map = Map("1" -> "1234", "2" -> "3456")
+    val testMapCol = typedLit(lookup_map)
+    ea.withColumn("lookup", coalesce(testMapCol($"x"), lit(""))).show(false)
+
+    /*
+     * lag,lead window functin
+     */
+    val df_l = Seq(("xx", 1, "A"), ("yy", 2, "A"), ("zz", 1, "B"), ("yy", 3, "B"), ("tt", 4, "B")).toDF("id", "ts", "sess")
+    df_l.groupBy($"sess").agg(collect_set('id).alias("cl")).select('sess, 'cl).show(false)
+    println("lag"* 10)
+    val lag_df=df_l.withColumn("lag", lag('id, 1).over(Window.partitionBy('sess).orderBy('ts)))
+    lag_df.show(false)
+    println("lead"* 10)
+    val lead_df=  df_l.withColumn("lead", lead('id, 1).over(Window.partitionBy('sess).orderBy('ts)))
+    lead_df.show(false)
+    
+    //========group by and collect_list on lag column and nulls are removed by default==========
+    lag_df.groupBy('id).agg(collect_list('lag).as("lag"))
+      .select("*")
+      .show(false)
   }
 }
 /*
