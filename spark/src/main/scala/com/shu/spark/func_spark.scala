@@ -502,17 +502,44 @@ object func_spark {
      */
     val df_l = Seq(("xx", 1, "A"), ("yy", 2, "A"), ("zz", 1, "B"), ("yy", 3, "B"), ("tt", 4, "B")).toDF("id", "ts", "sess")
     df_l.groupBy($"sess").agg(collect_set('id).alias("cl")).select('sess, 'cl).show(false)
-    println("lag"* 10)
-    val lag_df=df_l.withColumn("lag", lag('id, 1).over(Window.partitionBy('sess).orderBy('ts)))
+    println("lag" * 10)
+    val lag_df = df_l.withColumn("lag", lag('id, 1).over(Window.partitionBy('sess).orderBy('ts)))
     lag_df.show(false)
-    println("lead"* 10)
-    val lead_df=  df_l.withColumn("lead", lead('id, 1).over(Window.partitionBy('sess).orderBy('ts)))
+    println("lead" * 10)
+    val lead_df = df_l.withColumn("lead", lead('id, 1).over(Window.partitionBy('sess).orderBy('ts)))
     lead_df.show(false)
-    
+
     //========group by and collect_list on lag column and nulls are removed by default==========
     lag_df.groupBy('id).agg(collect_list('lag).as("lag"))
       .select("*")
       .show(false)
+    df_l.withColumn("cn_ws", concat_ws("|", array("*"))).show(false)
+    val d_ws = Seq(("a", "b", Option.empty[String])).toDF("Col1", "Col2", "Col3")
+
+    /*
+     *concat_ws and select all columns and cast to string type
+     */
+
+    d_ws.na.fill("null")
+      .withColumn("cn_ws", concat_ws("|", array("*")))
+      .show(false)
+
+    d_ws.na.fill("null")
+      .withColumn("cn_ws1", concat_ws("|", array(d_ws.columns.map(c => col(c).cast(StringType)): _*)))
+      .show(false)
+
+    d_ws.select(d_ws.columns.map(col): _*)
+      .show(false)
+
+    /*
+     * timestamp in milli seconds using sys time and spark function
+     */
+      d_ws.withColumn("sys_milli", lit(System.currentTimeMillis()))
+          .withColumn("ts_milli",lit(current_timestamp().cast("timestamp")
+                          .cast("decimal(18,3)") * 1000)
+                          .cast("decimal(15,0)"))
+          .show(false)
+
   }
 }
 /*
