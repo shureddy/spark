@@ -484,6 +484,22 @@ object func_spark {
     ea.withColumn("row_number", row_number().over(Window.partitionBy('y).orderBy('x))).show(false)
     ea.withColumn("rank", rank().over(Window.orderBy('x))).show(false)
     ea.withColumn("dense_rank", dense_rank().over(Window.orderBy('x))).show(false)
+    val df_dr = Seq(
+      ("2019-01-29"),
+      ("2019-01-29"),
+      ("2019-07-31"),
+      ("2019-01-29"),
+      ("2019-07-31")).toDF("date")
+    //======append partition value based on partition =========
+    df_dr.withColumn("id", concat(lit("ABC"), dense_rank().over(Window.orderBy('date)))).show(false)
+
+    //=====or=====
+    val df_zwi = df_dr.distinct.rdd.zipWithIndex()
+      .map { r => (r._1.getString(0), r._2 + 1) }
+      .toDF("date", "p_id")
+    df_dr.alias("den").join(df_zwi.alias("zip"), Seq("date"))
+      .withColumn("id", concat(lit("ABC"), 'p_id))
+      .show(false)
 
     /*
      * typed lit,map
@@ -534,12 +550,43 @@ object func_spark {
     /*
      * timestamp in milli seconds using sys time and spark function
      */
-      d_ws.withColumn("sys_milli", lit(System.currentTimeMillis()))
-          .withColumn("ts_milli",lit(current_timestamp().cast("timestamp")
-                          .cast("decimal(18,3)") * 1000)
-                          .cast("decimal(15,0)"))
-          .show(false)
+    d_ws.withColumn("sys_milli", lit(System.currentTimeMillis()))
+      .withColumn("ts_milli", lit(current_timestamp().cast("timestamp")
+        .cast("decimal(18,3)") * 1000)
+        .cast("decimal(15,0)"))
+      .show(false)
 
+    /*
+     * get summary(stats) of dataframe
+     */
+
+    d_ws.summary().show(false)
+
+    /*
+     * get configurations of current spark context
+     */
+    
+    val ga=spark.conf.getAll
+    ga.foreach(println)
+    
+    //====or====
+    
+    val gc_a=spark.sparkContext.getConf.getAll
+    gc_a.foreach(println)
+    
+    //=====get specific conf from spark session======
+    println(spark.conf.get("spark.sql.shuffle.partitions"))
+    
+    /*
+     * getitem
+     */
+    val df_gi=Seq(("a_1","xyz","abc"),("b_2","xyz","abc")).toDF("id1","id2","id3")
+    df_gi.withColumn("_tmp",split('id1,"_"))
+          .withColumn("id1_1",'_tmp.getItem(0))
+          .withColumn("id1_2",'_tmp.getItem(1))
+          .drop("_tmp")
+          .show(false)
+   
   }
 }
 /*
