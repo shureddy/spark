@@ -565,28 +565,50 @@ object func_spark {
     /*
      * get configurations of current spark context
      */
-    
-    val ga=spark.conf.getAll
+
+    val ga = spark.conf.getAll
     ga.foreach(println)
-    
+
     //====or====
-    
-    val gc_a=spark.sparkContext.getConf.getAll
+
+    val gc_a = spark.sparkContext.getConf.getAll
     gc_a.foreach(println)
-    
+
     //=====get specific conf from spark session======
     println(spark.conf.get("spark.sql.shuffle.partitions"))
-    
+
     /*
      * getitem
      */
-    val df_gi=Seq(("a_1","xyz","abc"),("b_2","xyz","abc")).toDF("id1","id2","id3")
-    df_gi.withColumn("_tmp",split('id1,"_"))
-          .withColumn("id1_1",'_tmp.getItem(0))
-          .withColumn("id1_2",'_tmp.getItem(1))
-          .drop("_tmp")
-          .show(false)
-   
+    val df_gi = Seq(("a_1", "xyz", "abc"), ("b_2", "xyz", "abc")).toDF("id1", "id2", "id3")
+    df_gi.withColumn("_tmp", split('id1, "_"))
+      .withColumn("id1_1", '_tmp.getItem(0))
+      .withColumn("id1_2", '_tmp.getItem(1))
+      .drop("_tmp")
+      .show(false)
+
+    /*
+     * check all columns using case when
+     */
+
+    val lo = Seq((1, 2, 0), (0, 0, 1), (0, 0, 0), (1, 2, 0)).toDF("x", "y", "z")
+    val cls = lo.columns
+    lo.select(
+      cls.map(c => when(col(c) === 0, 5).otherwise(col(c)).as(c)): _*)
+      .show(false)
+
+    /*
+     * convert dataset to dataframe
+     */
+
+    //=======Dataset======
+    val ds = Seq(("VAR1, VAR2, VAR3, VAR4"), ("a, b, c, d"), ("ae, f, g, h")).toDS()
+    ds.show()
+
+    //========read the dataset using .csv dataframe method========
+    val ds_df = spark.read.option("inferSchema", "true").option("header", "true").csv(ds)
+    ds_df.show()
+
   }
 }
 /*
