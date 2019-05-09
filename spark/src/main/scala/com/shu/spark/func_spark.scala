@@ -7,6 +7,7 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql._
 import org.apache.spark.rdd._
 import org.apache.spark.sql.expressions.Window
+import org.apache.hadoop.fs.{ FileSystem, Path }
 
 object func_spark {
   def main(args: Array[String]): Unit = {
@@ -622,6 +623,33 @@ object func_spark {
       val rd_z = df_z1.rdd.zip(df_z2.rdd)
       println(rd_z.collect.mkString("|"))
       rd_z.foreach(println)
+
+      /*
+       * list and filter files and rename file in hdfs
+       */
+      //      val all_files=FileSystem.get( spark.sparkContext.hadoopConfiguration ).listStatus(new Path("/user/ymuppi1/")).map(_.getPath()).mkString("|")
+      //      val req_files=all_files.split("\\|").filter(_.contains(".csv")).mkString
+      //      val hdfs = FileSystem.get(spark.sparkContext.hadoopConfiguration);
+      //      hdfs.rename(new Path("/user/ymuppi1/file_write/part-r-00000-64c8c8f2-444e-42a4-9095-5814a12ceded"), new Path("/user/ymuppi1/file_write/med.csv"))
+
+      /*
+       * split,count,getItem
+       */
+      val df_spl = Seq(("oi"), ("ll,io")).toDF()
+      df_spl.withColumn("siz", size(split('value, ",")))
+        .withColumn("first_ele", split('value, ",").getItem(0))
+        .withColumn("sec_ele", split('value, ",").getItem(1))
+        .show(false)
+      lo.createOrReplaceTempView("lop")
+      spark.sql("select * from lop").show(false)
+      spark.sql("select distinct l.x,l.y,l.z from lop l join lop b on l.x=b.x limit 10").show(false)
+
+      /*
+       * stack
+       */
+      spark.sql("""with cte as (select stack(2,"2019-02-09 12:09:34.888","2019-02-04 12:09:34.888") as (ts)) 
+        select max(ts) from cte""").show(false)
+
     }
   }
 }
