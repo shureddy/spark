@@ -650,6 +650,32 @@ object func_spark {
       spark.sql("""with cte as (select stack(2,"2019-02-09 12:09:34.888","2019-02-04 12:09:34.888") as (ts)) 
         select max(ts) from cte""").show(false)
 
+      /*
+       * convert to rdd and print data
+       */
+      df_spl.rdd.foreach(println)
+      df_spl.show(false)
+
+      /*
+       * read json string
+       */
+      val op_ll = """[{"eventEndTimestamp":"2019-05-07T03:48:01Z","eventStartTimestamp":"2019-05-07T03:48:01Z","sourceSystem":"X1","transactionCode":"asdf","transactionSuccessIndicator":"Y"},{"eventEndTimestamp":"2019-05-07T03:48:04Z","eventStartTimestamp":"2019-05-07T03:48:04Z","sourceSystem":"X2","transactionCode":"qwerty","transactionSuccessIndicator":"Y"}]"""
+      spark.read.json(Seq(op_ll).toDS).show()
+
+      /*
+       * groupby and aggregate on all/required columns
+       */
+
+      val df_ppp = Seq((1, 2, 3), (3, 4, 5), (1, 1, 1), (3, 2, 2)).toDF("A", "B", "C")
+      df_ppp.show(false)
+      df_ppp.groupBy('A).min().show(false)
+      
+      val exprs = df_ppp.columns.map((_ -> "sum")).toMap
+      df_ppp.groupBy('A).agg(exprs).show()
+
+      val opsa = Seq("B", "C").map((_ -> "sum")).toMap
+      println(opsa)
+      df_ppp.groupBy('A).agg(opsa).show()
     }
   }
 }
