@@ -669,13 +669,58 @@ object func_spark {
       val df_ppp = Seq((1, 2, 3), (3, 4, 5), (1, 1, 1), (3, 2, 2)).toDF("A", "B", "C")
       df_ppp.show(false)
       df_ppp.groupBy('A).min().show(false)
-      
+
       val exprs = df_ppp.columns.map((_ -> "sum")).toMap
       df_ppp.groupBy('A).agg(exprs).show()
 
       val opsa = Seq("B", "C").map((_ -> "sum")).toMap
       println(opsa)
       df_ppp.groupBy('A).agg(opsa).show()
+
+      //====or=====
+      val alia = Seq("B", "C").map(c => sum(c).as(s"sum_$c"))
+      df_ppp.groupBy('A).agg(alia.head, alia.tail: _*).show(false)
+      df_ppp.groupBy('A).sum().show(false)
+
+      /*
+       *create array struct on all columns except the first column
+       */
+      val customer = Seq(
+        ("C1", "Jackie Chan", 50, "Dayton", "M"),
+        ("C2", "Harry Smith", 30, "Beavercreek", "M"),
+        ("C3", "Ellen Smith", 28, "Beavercreek", "F"),
+        ("C4", "John Chan", 26, "Dayton", "M")).toDF("cid", "name", "age", "city", "sex")
+
+      val col_s = customer.columns.tail
+      val result = customer.select(
+        'cid,
+        array(col_s.map(c => struct(lit(c) as "name", col(c) cast "string" as "value")): _*) as "array")
+
+      result.show(false)
+
+      /*
+       * find max string length with value
+       */
+      
+      val old_df = Seq(("Name"), ("Id"), ("Country")).toDF("Column_name")
+      val n_df = Seq(("A", 1, "US"), ("AB", 1, "US"), ("ABC", 1, "US")).toDF("city", "num", "country")
+      println(n_df.agg(max(length('city))).first())
+      n_df.createOrReplaceTempView("lpl")
+      spark.sql("select * from (select *,length(city)str_len,row_number() over (order by length(city) desc)rn from lpl)q where q.rn=1").show()
+      val win = Window.orderBy(length('city).desc)
+
+      n_df.withColumn("str_len", length('city))
+        .withColumn("rn", row_number().over(win))
+        .filter('rn === 1)
+        .show(false)
+
+      /*
+       * change col names
+       */
+
+      val new_col = old_df.collect.map(_.getString(0))
+      n_df.toDF(new_col: _*).show(false)
+
     }
   }
 }
