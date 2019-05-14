@@ -701,7 +701,7 @@ object func_spark {
       /*
        * find max string length with value
        */
-      
+
       val old_df = Seq(("Name"), ("Id"), ("Country")).toDF("Column_name")
       val n_df = Seq(("A", 1, "US"), ("AB", 1, "US"), ("ABC", 1, "US")).toDF("city", "num", "country")
       println(n_df.agg(max(length('city))).first())
@@ -720,6 +720,34 @@ object func_spark {
 
       val new_col = old_df.collect.map(_.getString(0))
       n_df.toDF(new_col: _*).show(false)
+      
+      /*
+       * Dataset API
+       */
+      
+      val ran_sp=spark.range(5)
+      
+      //======get the type of variable========\
+      def manOf[T: Manifest](t: T): Manifest[T] = manifest[T]
+      println(manOf(ran_sp))
+      println("getclass: " + ran_sp.getClass)
+      ran_sp.printSchema()
+      ran_sp.select('id).show(false)
+      ran_sp.selectExpr("id * 2 as id").show(false)
+      
+      //df filter on dataset
+      println("df filter on dataset")
+      ran_sp.filter('id === 2).show(false)
+      
+      //scala filter on dataset
+      println("rdd filter on dataset")
+      ran_sp.filter(n => n == 2).show(false)
+      ran_sp.filter(_ == 2).show(false)
+      
+      //sql filter on dataset
+      println("sql filter on dataset")
+      ran_sp.filter("id = 2").show(false)
+      
 
     }
   }
