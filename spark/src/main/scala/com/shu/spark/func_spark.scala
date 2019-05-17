@@ -630,7 +630,7 @@ object func_spark {
       //      val all_files=FileSystem.get( spark.sparkContext.hadoopConfiguration ).listStatus(new Path("/user/ymuppi1/")).map(_.getPath()).mkString("|")
       //      val req_files=all_files.split("\\|").filter(_.contains(".csv")).mkString
       //      val hdfs = FileSystem.get(spark.sparkContext.hadoopConfiguration);
-      //      hdfs.rename(new Path("/user/ymuppi1/file_write/part-r-00000-64c8c8f2-444e-42a4-9095-5814a12ceded"), new Path("/user/ymuppi1/file_write/med.csv"))
+      //      hdfs.rename(new Path(req_files), new Path("/user/ymuppi1/file_write/med.csv"))
 
       /*
        * split,count,getItem
@@ -704,9 +704,13 @@ object func_spark {
 
       val old_df = Seq(("Name"), ("Id"), ("Country")).toDF("Column_name")
       val n_df = Seq(("A", 1, "US"), ("AB", 1, "US"), ("ABC", 1, "US")).toDF("city", "num", "country")
+      n_df.select(expr("(num * 10) as num"),lit(1).as("op")).show()
+      n_df.selectExpr("num * 10 as num").show(false)
       println(n_df.agg(max(length('city))).first())
       n_df.createOrReplaceTempView("lpl")
       spark.sql("select * from (select *,length(city)str_len,row_number() over (order by length(city) desc)rn from lpl)q where q.rn=1").show()
+      //=======sub query and get only the max city=========
+      spark.sql("select * from lpl where city = (select max(city) from lpl)").show(false)
       val win = Window.orderBy(length('city).desc)
 
       n_df.withColumn("str_len", length('city))
@@ -747,8 +751,13 @@ object func_spark {
       //sql filter on dataset
       println("sql filter on dataset")
       ran_sp.filter("id = 2").show(false)
-      
 
+        }
+    catch{
+      case e: Exception => println("exception caught: " + e)
+    }
+    finally {
+      spark.stop()
     }
   }
 }
