@@ -704,7 +704,7 @@ object func_spark {
 
       val old_df = Seq(("Name"), ("Id"), ("Country")).toDF("Column_name")
       val n_df = Seq(("A", 1, "US"), ("AB", 1, "US"), ("ABC", 1, "US")).toDF("city", "num", "country")
-      n_df.select(expr("(num * 10) as num"),lit(1).as("op")).show()
+      n_df.select(expr("(num * 10) as num"), lit(1).as("op")).show()
       n_df.selectExpr("num * 10 as num").show(false)
       println(n_df.agg(max(length('city))).first())
       n_df.createOrReplaceTempView("lpl")
@@ -726,11 +726,27 @@ object func_spark {
       n_df.toDF(new_col: _*).show(false)
       
       /*
+       * remove quotes at start and end of dataframe column
+       */
+      val df_d = List("\"john belushi\"", "\"John b-e_lushi\"", "\"john belushi's book\"").toDF("data")
+      df_d
+        .map {
+          r =>
+            {
+              val doub_quote = r.getAs[String]("data")
+              doub_quote.substring(1, doub_quote.length() - 1)
+            }
+        }
+        .show(false)
+        df_d.show(false)
+        df_d.withColumn("data", expr("substring(data, 2, length(data) - 2)")).show(false)
+
+      /*
        * Dataset API
        */
-      
-      val ran_sp=spark.range(5)
-      
+
+      val ran_sp = spark.range(5)
+
       //======get the type of variable========\
       def manOf[T: Manifest](t: T): Manifest[T] = manifest[T]
       println(manOf(ran_sp))
@@ -738,25 +754,23 @@ object func_spark {
       ran_sp.printSchema()
       ran_sp.select('id).show(false)
       ran_sp.selectExpr("id * 2 as id").show(false)
-      
+
       //df filter on dataset
       println("df filter on dataset")
       ran_sp.filter('id === 2).show(false)
-      
+
       //scala filter on dataset
       println("rdd filter on dataset")
       ran_sp.filter(n => n == 2).show(false)
       ran_sp.filter(_ == 2).show(false)
-      
+
       //sql filter on dataset
       println("sql filter on dataset")
       ran_sp.filter("id = 2").show(false)
 
-        }
-    catch{
+    } catch {
       case e: Exception => println("exception caught: " + e)
-    }
-    finally {
+    } finally {
       spark.stop()
     }
   }
