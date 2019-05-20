@@ -8,6 +8,7 @@ import org.apache.spark.sql._
 import org.apache.spark.rdd._
 import org.apache.spark.sql.expressions.Window
 import org.apache.hadoop.fs.{ FileSystem, Path }
+import scala.util.Try
 
 object func_spark {
   def main(args: Array[String]): Unit = {
@@ -176,6 +177,13 @@ object func_spark {
        */
       val df_exp = df_arr.select('id, explode('sentences))
       df_exp.show(false)
+      
+      //======explode on json data=======
+      val df_pd = Seq(("2019-05-15T10:37:22+00:00", """[{"@id":"1","@type":"type","category":"cat"},{"@id":"2","@type":"type","category":"cat1"}]"""))
+                          .toDF("published", "data")
+      val schema_at = ArrayType(StructType(Array(StructField("@id", StringType))))
+      df_pd.select('published, from_json($"data", schema_at).alias("ids"))
+        .select('published, explode($"ids.@id").alias("id")).show(false)
 
       val df_op = spark.sparkContext.parallelize(Seq(
         ("a", 1, 2, 3),
@@ -202,6 +210,11 @@ object func_spark {
         .drop("value")
         .show()
 
+      //======concat on array data========
+      val df_e = Seq((1, Array("Mat", "Phy", "Eng"), "Chem")).toDF("Student_ID", "Subject_List", "New_Subject")
+      df_e.printSchema()
+      df_e.show()
+      df_e.withColumn("conct", concat('Subject_List, array('New_Subject))).show(false)
       /*
        * absolute value
        */
@@ -575,6 +588,14 @@ object func_spark {
       val ga = spark.conf.getAll
       ga.foreach(println)
 
+      //=====find all the spark uploaded files using spark-submit --files=====
+      println("**Spark staging files")
+      println(System.getProperties)
+      println(System.getenv("SPARK_YARN_STAGING_DIR"))
+      //======cache the file and get the full path=======
+      println(System.getenv("SPARK_YARN_CACHE_FILES"))
+      println(spark.sparkContext.getLocalProperty("SPARK_YARN_CACHE_FILES"))
+
       //====or====
 
       val gc_a = spark.sparkContext.getConf.getAll
@@ -724,10 +745,11 @@ object func_spark {
 
       val new_col = old_df.collect.map(_.getString(0))
       n_df.toDF(new_col: _*).show(false)
-      
+
       /*
        * remove quotes at start and end of dataframe column
        */
+
       val df_d = List("\"john belushi\"", "\"John b-e_lushi\"", "\"john belushi's book\"").toDF("data")
       df_d
         .map {
@@ -738,8 +760,31 @@ object func_spark {
             }
         }
         .show(false)
-        df_d.show(false)
-        df_d.withColumn("data", expr("substring(data, 2, length(data) - 2)")).show(false)
+      df_d.show(false)
+      //====(or)=====
+      df_d.withColumn("data", expr("substring(data, 2, length(data) - 2)")).show(false)
+
+      /*
+       * wholeTextFiles and print filenames with index
+       */
+
+      val rdd_w = spark.sparkContext.wholeTextFiles("/Users/yaswanthreddy/Documents/docs/*")
+      val zwi = rdd_w.zipWithIndex().map {
+        case (fn, index) => (index, fn._1)
+      }
+      zwi.sortByKey(true).foreach {
+        case (index, fn) => println(s"\n Index number: $index, file number: $fn")
+      }
+
+      /*
+       *window,collect_list, count
+       */
+      
+      val df_rb = Seq(1, 2, 3, 4, 5).toDF("id")
+      val win_rb = Window.orderBy("id").rowsBetween(-1, 1)
+      df_rb.withColumn("agg", collect_list('id).over(win_rb))
+        .withColumn("cnt", count("*").over(win_rb))
+        .show(false)
 
       /*
        * Dataset API
@@ -788,4 +833,3 @@ object shared {
       return "nothing"
   }
 }
-
