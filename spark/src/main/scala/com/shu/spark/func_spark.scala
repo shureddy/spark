@@ -177,10 +177,10 @@ object func_spark {
        */
       val df_exp = df_arr.select('id, explode('sentences))
       df_exp.show(false)
-      
+
       //======explode on json data=======
       val df_pd = Seq(("2019-05-15T10:37:22+00:00", """[{"@id":"1","@type":"type","category":"cat"},{"@id":"2","@type":"type","category":"cat1"}]"""))
-                          .toDF("published", "data")
+        .toDF("published", "data")
       val schema_at = ArrayType(StructType(Array(StructField("@id", StringType))))
       df_pd.select('published, from_json($"data", schema_at).alias("ids"))
         .select('published, explode($"ids.@id").alias("id")).show(false)
@@ -509,6 +509,24 @@ object func_spark {
         ("2019-07-31"),
         ("2019-01-29"),
         ("2019-07-31")).toDF("date")
+      /*
+       *first and last value
+       */
+      val df_lst = Seq(
+        (1, "specificSensor", Some(1)),
+        (2, "1234", None),
+        (3, "1234", None),
+        (4, "specificSensor", Some(2)),
+        (5, "2345", None),
+        (6, "2345", None))
+        .toDF("ID", "Sensor", "No")
+      
+      df_lst.select(
+        $"ID",
+        $"Sensor",
+        last($"No", ignoreNulls = true) over Window.orderBy($"ID") as "No").show()
+      //.rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+
       //======append partition value based on partition =========
       df_dr.withColumn("id", concat(lit("ABC"), dense_rank().over(Window.orderBy('date)))).show(false)
 
@@ -779,7 +797,7 @@ object func_spark {
       /*
        *window,collect_list, count
        */
-      
+
       val df_rb = Seq(1, 2, 3, 4, 5).toDF("id")
       val win_rb = Window.orderBy("id").rowsBetween(-1, 1)
       df_rb.withColumn("agg", collect_list('id).over(win_rb))
