@@ -520,7 +520,7 @@ object func_spark {
         (5, "2345", None),
         (6, "2345", None))
         .toDF("ID", "Sensor", "No")
-      
+
       df_lst.select(
         $"ID",
         $"Sensor",
@@ -633,6 +633,11 @@ object func_spark {
         .show(false)
 
       /*
+       * substring,length
+       */
+
+      df_gi.select(expr("substring(id2, 2, length(id2))")).show(false)
+      /*
        * check all columns using case when
        */
 
@@ -722,6 +727,24 @@ object func_spark {
       df_ppp.groupBy('A).sum().show(false)
 
       /*
+       *union and reduce 
+       */
+      
+      val df_un = Seq(
+        (123, "Jitu", "123456", "987654", "111111", "DELHI", "GURGAON", "NOIDA"),
+        (234, "Mark", "123456", "987654", "111111", "UK", "USA", "IND")).toDF(
+          "Userid", "Name", "Phone1", "Phone2", "Phone3", "Address1", "Address2", "Address3")
+      val columnIndexes = Seq(1, 2, 3)
+      val onlyOneIndexDfs = columnIndexes.map(idx =>
+        df_un.select(
+          $"Userid",
+          $"Name",
+          col(s"Phone$idx").alias("Phone_no"),
+          col(s"Address$idx").alias("Address")))
+
+      val result_un = onlyOneIndexDfs.reduce(_ union _)
+
+      /*
        *create array struct on all columns except the first column
        */
       val customer = Seq(
@@ -803,6 +826,11 @@ object func_spark {
       df_rb.withColumn("agg", collect_list('id).over(win_rb))
         .withColumn("cnt", count("*").over(win_rb))
         .show(false)
+        
+      /*
+       *  repartition and create file with specific number of records
+       */
+        //df.repartition("col_name") and spark.sql.files.maxRecordsPerFile to control number of records in file
 
       /*
        * Dataset API
