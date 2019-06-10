@@ -9,11 +9,13 @@ import org.apache.spark.rdd._
 import org.apache.spark.sql.expressions.Window
 import org.apache.hadoop.fs.{ FileSystem, Path }
 import scala.util.Try
+import org.apache.spark.sql.Encoders
 
 object func_spark {
   def main(args: Array[String]): Unit = {
+    val conf = new SparkConf()
     val spark = SparkSession
-      .builder().master("local")
+      .builder().config(conf).master("local")
       .appName("Spark SQL basic example")
       .getOrCreate()
     spark.sparkContext.setLogLevel("ERROR")
@@ -727,9 +729,9 @@ object func_spark {
       df_ppp.groupBy('A).sum().show(false)
 
       /*
-       *union and reduce 
+       *union and reduce
        */
-      
+
       val df_un = Seq(
         (123, "Jitu", "123456", "987654", "111111", "DELHI", "GURGAON", "NOIDA"),
         (234, "Mark", "123456", "987654", "111111", "UK", "USA", "IND")).toDF(
@@ -826,11 +828,28 @@ object func_spark {
       df_rb.withColumn("agg", collect_list('id).over(win_rb))
         .withColumn("cnt", count("*").over(win_rb))
         .show(false)
+
+      /*
+       * min,max values in array
+       */
+      val arr_df = Seq(Array(1, 2, 3, 4), Array(0, 2, 4), Array[Int](), Array(3)).toDF("val")
+      arr_df.withColumn("min_val", array_min('val))
+        .withColumn("max_val", array_max('val))
+        .withColumn("min_coalesce", coalesce(array_min('val), lit(-1)))
+        .show(false)
+
+      /*
+       *rdd size,dropright,map
+       */
         
+      val lines = spark.sparkContext.parallelize(Array(("hipapdpa klkdkksaf 11"), ("hipapdpa klkdkksaf 11")))
+      lines.map(_.split(" ")).map(r => (r(0).dropRight(3), r(2).toInt)).reduceByKey(_ + _).foreach(println)
+      lines.map(_.split(" ")).map(r => (r.size)).collect()
+
       /*
        *  repartition and create file with specific number of records
        */
-        //df.repartition("col_name") and spark.sql.files.maxRecordsPerFile to control number of records in file
+      //df.repartition("col_name") and spark.sql.files.maxRecordsPerFile to control number of records in file
 
       /*
        * Dataset API
@@ -859,6 +878,15 @@ object func_spark {
       println("sql filter on dataset")
       ran_sp.filter("id = 2").show(false)
 
+      val sour: RDD[fruits] = spark.sparkContext.parallelize(Seq(fruits("mang", 1), fruits("mang", 2), fruits("ols", 2)))
+      import spark.implicits._
+      val ds_sour = sour.toDS
+      ds_sour.filter(_.name == "mang").show()
+
+      val sour2 = Array(fruits("mang", 1), fruits("mang", 2), fruits("ols", 2))
+      val ds_sour2 = spark.createDataset(sour2)
+      ds_sour2.show()
+
     } catch {
       case e: Exception => println("exception caught: " + e)
     } finally {
@@ -866,6 +894,7 @@ object func_spark {
     }
   }
 }
+case class fruits(name: String, quantity: Int)
 /*
  * object for creating and register as udf.
  */
