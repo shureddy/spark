@@ -8,6 +8,7 @@ import org.apache.spark.sql._
 import org.apache.spark.rdd._
 import org.apache.spark.sql.expressions.Window
 import org.apache.hadoop.fs.{ FileSystem, Path }
+import org.apache.hadoop.util._
 import scala.util.Try
 import org.apache.spark.sql.Encoders
 
@@ -19,6 +20,8 @@ object func_spark {
       .appName("Spark SQL basic example")
       .getOrCreate()
     spark.sparkContext.setLogLevel("ERROR")
+    println("Spark_version: " + spark.version)
+    println("Hadoop version: " + org.apache.hadoop.util.VersionInfo.getVersion)
     import spark.implicits._
     try {
       val df = spark.sparkContext.parallelize(0 to 10).toDF("id")
@@ -26,6 +29,7 @@ object func_spark {
       val ag_ud = udf((age: Int) => shared.ag_case(age))
       val df_udf = df.withColumn("udf", ag_ud('id))
       df_udf.show(10, false)
+      
       /*
        * print schema
        */
@@ -42,6 +46,7 @@ object func_spark {
       /*
        * select statements
        */
+      
       //val cols=Array("id","udf")
       df_udf.select('id).show(false)
       df_udf.selectExpr("int(id) +1 as incr_1", "id", "concat(udf,'+s') as udf", "upper(udf) as upper_udf").show(false)
@@ -847,7 +852,24 @@ object func_spark {
       val lines = spark.sparkContext.parallelize(Array(("hipapdpa klkdkksaf 11"), ("hipapdpa klkdkksaf 11")))
       lines.map(_.split(" ")).map(r => (r(0).dropRight(3), r(2).toInt)).reduceByKey(_ + _).foreach(println)
       lines.map(_.split(" ")).map(r => (r.size)).collect()
-
+      
+      /*
+       * Remove white spaces from column names
+       */
+      
+      val df_wsp=Seq(("a","b"),("1","2")).toDF("dasda fasj","dakks wkkq")
+      var new_df_wsp=df_wsp
+      df_wsp.columns.foreach{c => new_df_wsp=new_df_wsp.withColumnRenamed(c, c.replaceAll(" ", ""))}
+      new_df_wsp.printSchema
+      new_df_wsp.show()
+      
+      /*
+       * explode  and substring
+       */
+      
+      val df_expld = Seq("chair", "lamp", "table").toDF("word")
+      df_expld.withColumn("len",explode(sequence(lit(1),length('word)))).select('word.substr(lit(1),'len)).show()
+      
       /*
        *  repartition and create file with specific number of records
        */
