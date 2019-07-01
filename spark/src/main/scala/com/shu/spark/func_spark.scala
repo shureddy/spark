@@ -29,7 +29,7 @@ object func_spark {
       val ag_ud = udf((age: Int) => shared.ag_case(age))
       val df_udf = df.withColumn("udf", ag_ud('id))
       df_udf.show(10, false)
-      
+
       /*
        * print schema
        */
@@ -46,7 +46,7 @@ object func_spark {
       /*
        * select statements
        */
-      
+
       //val cols=Array("id","udf")
       df_udf.select('id).show(false)
       df_udf.selectExpr("int(id) +1 as incr_1", "id", "concat(udf,'+s') as udf", "upper(udf) as upper_udf").show(false)
@@ -157,8 +157,8 @@ object func_spark {
         .withColumn("tomorrow", lit(date_add(current_date, 1)))
         .withColumn("date_difference", datediff(current_timestamp, lit("2018-04-11 21:56:45.882").cast(TimestampType)))
         .withColumn("timestamp_difference", unix_timestamp(current_timestamp) - unix_timestamp(lit("2018-04-11 21:56:45.882").cast(TimestampType)))
-        .withColumn("t_z",date_format(to_utc_timestamp(lit("2019-05-21T13:35:16.203Z"),""),"M/dd/yyyy hh:mm:ss.SSS aaa"))
-        .withColumn("f_u_t",from_unixtime(unix_timestamp(lit("2019-05-21T13:35:16.203Z"),"yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"),"yyyy-MM-dd"))
+        .withColumn("t_z", date_format(to_utc_timestamp(lit("2019-05-21T13:35:16.203Z"), ""), "M/dd/yyyy hh:mm:ss.SSS aaa"))
+        .withColumn("f_u_t", from_unixtime(unix_timestamp(lit("2019-05-21T13:35:16.203Z"), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"), "yyyy-MM-dd"))
         .show(false)
       /*
        * Array operations
@@ -848,28 +848,40 @@ object func_spark {
       /*
        *rdd size,dropright,map
        */
-        
+
       val lines = spark.sparkContext.parallelize(Array(("hipapdpa klkdkksaf 11"), ("hipapdpa klkdkksaf 11")))
       lines.map(_.split(" ")).map(r => (r(0).dropRight(3), r(2).toInt)).reduceByKey(_ + _).foreach(println)
       lines.map(_.split(" ")).map(r => (r.size)).collect()
-      
+
       /*
        * Remove white spaces from column names
        */
-      
-      val df_wsp=Seq(("a","b"),("1","2")).toDF("dasda fasj","dakks wkkq")
-      var new_df_wsp=df_wsp
-      df_wsp.columns.foreach{c => new_df_wsp=new_df_wsp.withColumnRenamed(c, c.replaceAll(" ", ""))}
+
+      val df_wsp = Seq(("a", "b"), ("1", "2")).toDF("dasda fasj", "dakks wkkq")
+      var new_df_wsp = df_wsp
+      df_wsp.columns.foreach { c => new_df_wsp = new_df_wsp.withColumnRenamed(c, c.replaceAll(" ", "")) }
       new_df_wsp.printSchema
       new_df_wsp.show()
       
       /*
-       * explode  and substring
+       *split,zipwithindex and map to the data
        */
       
-      val df_expld = Seq("chair", "lamp", "table").toDF("word")
-      df_expld.withColumn("len",explode(sequence(lit(1),length('word)))).select('word.substr(lit(1),'len)).show()
+      val df_spc = Seq(
+        ("1   PRE123         21"),
+        ("2   TEST           32"),
+        ("7   XYZ            .7")).toDF("value")
+      val clms_lst = Seq("id", "name", "class")
+      val colns = clms_lst.zipWithIndex.map { case (name, idx) => split($"value", "\\s+").getItem(idx).as(name) }
+      df_spc.select(colns: _*).show(false)
       
+      /*
+       * explode  and substring
+       */
+
+      val df_expld = Seq("chair", "lamp", "table").toDF("word")
+      df_expld.withColumn("len", explode(sequence(lit(1), length('word)))).select('word.substr(lit(1), 'len)).show()
+
       /*
        *  repartition and create file with specific number of records
        */
