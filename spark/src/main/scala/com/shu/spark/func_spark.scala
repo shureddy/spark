@@ -63,6 +63,13 @@ object func_spark {
       /*
        * create data frames
        */
+
+      //load csv data literal to dataframe
+      val df_frm_ds = spark.read.option("header", true).option("inferSchema", true).csv("""Topic,Key,Value
+        fruit,aaa,apple
+        fruit,bbb,orange""".split("\n").toSeq.toDS)
+      df_frm_ds.show(false)
+
       val df_k1 = Seq((1, 11, "scala"), (2, 22, "java")).toDF("id", "id_1", "name")
       df_k1.show(false)
       df_k1.select(df_k1.columns.filter(_.startsWith("id")).map(df_k1(_)): _*).show(false) //select cols starts with id
@@ -862,11 +869,11 @@ object func_spark {
       df_wsp.columns.foreach { c => new_df_wsp = new_df_wsp.withColumnRenamed(c, c.replaceAll(" ", "")) }
       new_df_wsp.printSchema
       new_df_wsp.show()
-      
+
       /*
        *split,zipwithindex and map to the data
        */
-      
+
       val df_spc = Seq(
         ("1   PRE123         21"),
         ("2   TEST           32"),
@@ -874,7 +881,7 @@ object func_spark {
       val clms_lst = Seq("id", "name", "class")
       val colns = clms_lst.zipWithIndex.map { case (name, idx) => split($"value", "\\s+").getItem(idx).as(name) }
       df_spc.select(colns: _*).show(false)
-      
+
       /*
        * explode  and substring
        */
