@@ -10,7 +10,7 @@ import org.apache.spark.sql.expressions.Window
 import org.apache.hadoop.fs.{ FileSystem, Path }
 import org.apache.hadoop.util._
 import scala.util.Try
-import org.apache.spark.sql.Encoders
+import java.sql.{Date,Timestamp}
 
 object func_spark {
   def main(args: Array[String]): Unit = {
@@ -143,6 +143,18 @@ object func_spark {
       df_ar_fil.groupBy('ID).agg(collect_list('Type).as("Types"))
         .select('ID, 'Types).where((size('Types) === 1).and(array_contains('Types, "A"))).show(false)
       println("**-" * 100)
+      
+      /*
+       * Timestamp,Date types
+       */
+      
+      val df_tst=Seq(("A",Timestamp.valueOf("2019-05-20 00:00:00.122"),Date.valueOf("2019-09-12")),
+          ("B",Timestamp.valueOf("2019-05-20 12:12:12.123456789"),Date.valueOf("2019-05-20")))
+          .toDF("id","ts","dt")
+      
+      df_tst.printSchema()
+      df_tst.show(false)
+      
 
       /*
        * date and timestamp functions
@@ -859,7 +871,13 @@ object func_spark {
       val lines = spark.sparkContext.parallelize(Array(("hipapdpa klkdkksaf 11"), ("hipapdpa klkdkksaf 11")))
       lines.map(_.split(" ")).map(r => (r(0).dropRight(3), r(2).toInt)).reduceByKey(_ + _).foreach(println)
       lines.map(_.split(" ")).map(r => (r.size)).collect()
-
+      /*
+       *
+       */
+       val df_r=spark.sparkContext.parallelize(Seq("alpha		rom")).map(x => {val d =x.split("\t")
+         (d(0),d(2))}).toDF("p","m")
+         println("--split--" * 20)
+         df_r.show()
       /*
        * Remove white spaces from column names
        */
