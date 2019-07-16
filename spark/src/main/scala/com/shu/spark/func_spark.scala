@@ -10,7 +10,7 @@ import org.apache.spark.sql.expressions.Window
 import org.apache.hadoop.fs.{ FileSystem, Path }
 import org.apache.hadoop.util._
 import scala.util.Try
-import java.sql.{Date,Timestamp}
+import java.sql.{ Date, Timestamp }
 
 object func_spark {
   def main(args: Array[String]): Unit = {
@@ -143,18 +143,18 @@ object func_spark {
       df_ar_fil.groupBy('ID).agg(collect_list('Type).as("Types"))
         .select('ID, 'Types).where((size('Types) === 1).and(array_contains('Types, "A"))).show(false)
       println("**-" * 100)
-      
+
       /*
        * Timestamp,Date types
        */
-      
-      val df_tst=Seq(("A",Timestamp.valueOf("2019-05-20 00:00:00.122"),Date.valueOf("2019-09-12")),
-          ("B",Timestamp.valueOf("2019-05-20 12:12:12.123456789"),Date.valueOf("2019-05-20")))
-          .toDF("id","ts","dt")
-      
+
+      val df_tst = Seq(
+        ("A", Timestamp.valueOf("2019-05-20 00:00:00.122"), Date.valueOf("2019-09-12")),
+        ("B", Timestamp.valueOf("2019-05-20 12:12:12.123456789"), Date.valueOf("2019-05-20")))
+        .toDF("id", "ts", "dt")
+
       df_tst.printSchema()
       df_tst.show(false)
-      
 
       /*
        * date and timestamp functions
@@ -205,6 +205,17 @@ object func_spark {
        */
       val df_exp = df_arr.select('id, explode('sentences))
       df_exp.show(false)
+
+      /*
+ 			* count all the null columns in dataframe
+ 			*/
+
+      val df_zn = Seq((Some(1.0), Some("NA"), null)).toDF("A", "B", "C")
+      val ls = df_zn.columns
+        .map(c => (c, df_zn.filter(col(c).isNotNull && !col(c).isNaN).count()))
+        .filter(_._2 < 1)
+        .map(_._1)
+      ls.foreach(c => println(s"null columns: $c"))
 
       //======explode on json data=======
       val df_pd = Seq(("2019-05-15T10:37:22+00:00", """[{"@id":"1","@type":"type","category":"cat"},{"@id":"2","@type":"type","category":"cat1"}]"""))
@@ -366,6 +377,21 @@ object func_spark {
         .join(df_cj.alias("s_d"), ($"f_d.c" === $"s_d.code" && $"f_d.st_c" === $"s_d.status"), "left")
         .select("st_c", "c", "count").na.fill(0)
         .show(false)
+        
+      /*
+       * map and collect_list
+       */
+       val test_df=Seq((1,999),(1,999),(2,999),(2,888),(1,666)).toDF("acctId","vehId")
+       
+       //=====udf to convert seq to map
+       val ltm=udf((input:Seq[Row]) => input.map(r=>(r.getAs[Int](0),r.getAs[Long](1))).toMap)
+       
+       test_df.groupBy("acctId", "vehId")
+               .agg(count("acctId").cast("long").as("count"))
+               .groupBy("acctId")
+               .agg(collect_list(struct('vehId,'count)) as ("m"))
+               .withColumn("map",ltm($"m"))
+               .show()
 
       /*
        * replace empty whitespaces with null
@@ -518,11 +544,13 @@ object func_spark {
       println(exists)
 
       /*
-       * exceptall join
+       * except,exceptall join
        */
+      println("except/all")
       val ea = Seq((1, "a"), (2, "a"), (2, "a"), (2, "a"), (2, "b"), (3, "c")).toDF("x", "y")
       val ea1 = Seq((1, "a"), (1, "a")).toDF("x", "y")
-      ea.exceptAll(ea1).show(false)
+      ea.exceptAll(ea1).show(false) //result set includes duplicated rows.
+      ea.except(ea1).show(false) //result set doesn't show duplicated rows.
 
       /*
        * row_number,rank,dense_rank
@@ -874,10 +902,12 @@ object func_spark {
       /*
        *
        */
-       val df_r=spark.sparkContext.parallelize(Seq("alpha		rom")).map(x => {val d =x.split("\t")
-         (d(0),d(2))}).toDF("p","m")
-         println("--split--" * 20)
-         df_r.show()
+      val df_r = spark.sparkContext.parallelize(Seq("alpha		rom")).map(x => {
+        val d = x.split("\t")
+        (d(0), d(2))
+      }).toDF("p", "m")
+      println("--split--" * 20)
+      df_r.show()
       /*
        * Remove white spaces from column names
        */
