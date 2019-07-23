@@ -20,6 +20,7 @@ object func_spark {
       .appName("Spark SQL basic example")
       .getOrCreate()
     spark.sparkContext.setLogLevel("ERROR")
+    println("spark user: " + spark.sparkContext.sparkUser)
     println("Spark_version: " + spark.version)
     println("Hadoop version: " + org.apache.hadoop.util.VersionInfo.getVersion)
     import spark.implicits._
@@ -178,6 +179,7 @@ object func_spark {
         .withColumn("timestamp_difference", unix_timestamp(current_timestamp) - unix_timestamp(lit("2018-04-11 21:56:45.882").cast(TimestampType)))
         .withColumn("t_z", date_format(to_utc_timestamp(lit("2019-05-21T13:35:16.203Z"), ""), "M/dd/yyyy hh:mm:ss.SSS aaa"))
         .withColumn("f_u_t", from_unixtime(unix_timestamp(lit("2019-05-21T13:35:16.203Z"), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"), "yyyy-MM-dd"))
+        .withColumn("t_ts",to_timestamp(lit("2019-06-24T15:36:16.000Z"),"yyyy-MM-dd'T'HH:mm:ss.SSS"))
         .show(false)
       /*
        * Array operations
