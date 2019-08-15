@@ -156,6 +156,10 @@ object func_spark {
 
       df_tst.printSchema()
       df_tst.show(false)
+      
+      val df_tss = Seq("2019-06-12 00:03:37.981005").toDF("a")
+      df_tss.withColumn("tmp", substring('a, 1, 23))
+        .withColumn("res", (unix_timestamp('tmp, "yyyy-MM-dd HH:mm:ss.SSS") + substring('a, -6, 6).cast("float") / 1000000).cast(TimestampType)).show(false)
 
       /*
        * date and timestamp functions
@@ -179,7 +183,7 @@ object func_spark {
         .withColumn("timestamp_difference", unix_timestamp(current_timestamp) - unix_timestamp(lit("2018-04-11 21:56:45.882").cast(TimestampType)))
         .withColumn("t_z", date_format(to_utc_timestamp(lit("2019-05-21T13:35:16.203Z"), ""), "M/dd/yyyy hh:mm:ss.SSS aaa"))
         .withColumn("f_u_t", from_unixtime(unix_timestamp(lit("2019-05-21T13:35:16.203Z"), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"), "yyyy-MM-dd"))
-        .withColumn("t_ts",to_timestamp(lit("2019-06-24T15:36:16.000Z"),"yyyy-MM-dd'T'HH:mm:ss.SSS"))
+        .withColumn("t_ts", to_timestamp(lit("2019-06-24T15:36:16.000Z"), "yyyy-MM-dd'T'HH:mm:ss.SSS"))
         .show(false)
       /*
        * Array operations
@@ -379,21 +383,21 @@ object func_spark {
         .join(df_cj.alias("s_d"), ($"f_d.c" === $"s_d.code" && $"f_d.st_c" === $"s_d.status"), "left")
         .select("st_c", "c", "count").na.fill(0)
         .show(false)
-        
+
       /*
        * map and collect_list
        */
-       val test_df=Seq((1,999),(1,999),(2,999),(2,888),(1,666)).toDF("acctId","vehId")
-       
-       //=====udf to convert seq to map
-       val ltm=udf((input:Seq[Row]) => input.map(r=>(r.getAs[Int](0),r.getAs[Long](1))).toMap)
-       
-       test_df.groupBy("acctId", "vehId")
-               .agg(count("acctId").cast("long").as("count"))
-               .groupBy("acctId")
-               .agg(collect_list(struct('vehId,'count)) as ("m"))
-               .withColumn("map",ltm($"m"))
-               .show()
+      val test_df = Seq((1, 999), (1, 999), (2, 999), (2, 888), (1, 666)).toDF("acctId", "vehId")
+
+      //=====udf to convert seq to map
+      val ltm = udf((input: Seq[Row]) => input.map(r => (r.getAs[Int](0), r.getAs[Long](1))).toMap)
+
+      test_df.groupBy("acctId", "vehId")
+        .agg(count("acctId").cast("long").as("count"))
+        .groupBy("acctId")
+        .agg(collect_list(struct('vehId, 'count)) as ("m"))
+        .withColumn("map", ltm($"m"))
+        .show()
 
       /*
        * replace empty whitespaces with null
@@ -544,6 +548,8 @@ object func_spark {
       val obj_hdfs = org.apache.hadoop.fs.FileSystem.get(conf_hd)
       val exists = obj_hdfs.exists(new org.apache.hadoop.fs.Path("/user/ymuppi1/orders.txt"))
       println(exists)
+      //print all the directories in path
+      //obj_hdfs.listStatus(new Path("<hdfs_path>")).filter(_.isDirectory()).map(_.getPath).foreach(println)
 
       /*
        * except,exceptall join
