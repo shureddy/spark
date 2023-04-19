@@ -4,3 +4,6 @@
 .cachepath
 .project
 .settings/
+spark/.classpath
+.vscode/settings.json
+spark/.settings/org.eclipse.jdt.core.prefs
