@@ -106,3 +106,14 @@ df3.printSchema()
 # |-- A: date (nullable = true)
 # |-- B: long (nullable = true)
 # |-- C: string (nullable = true)
+
+#https://stackoverflow.com/questions/76057335/add-character-at-character-count-in-pyspark
+df = spark.createDataFrame([("M202876QC0581AADMM01",)], ["str"])
+
+pat = r"^(.{1})(.{6})(.{6})(.{2})(.+)"
+df = df.withColumn("str", regexp_replace("str", pat, r"$1-$2-$3-$4-$5"))
+#+------------------------+
+#|str                     |
+#+------------------------+
+#|M-202876-QC0581-AA-DMM01|
+#+------------------------+
