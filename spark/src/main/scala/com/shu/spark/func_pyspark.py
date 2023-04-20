@@ -117,3 +117,27 @@ df = df.withColumn("str", regexp_replace("str", pat, r"$1-$2-$3-$4-$5"))
 #+------------------------+
 #|M-202876-QC0581-AA-DMM01|
 #+------------------------+
+
+#https://stackoverflow.com/questions/76059539/calculating-cumulative-sum-over-non-unique-list-elements-in-pyspark
+from pyspark.sql.functions import *
+from pyspark.sql import *
+from pyspark.sql.types import *
+data = [{"node": 'r1', "items": ['a','b','c','d'], "orderCol": 1},
+        {"node": 'r2', "items": ['e','f','g','a'], "orderCol": 2},
+        {"node": 'r3', "items": ['h','i','g','b'], "orderCol": 3},
+        {"node": 'r4', "items": ['j','i','f','c'], "orderCol": 4},
+        ]
+
+w=Window.partitionBy(lit(1)).rowsBetween(Window.unboundedPreceding, Window.currentRow)
+df = spark.createDataFrame(data).\
+  withColumn("temp_col",collect_list(col("items")).over(w)).\
+  withColumn("cumulative_item_count",size(array_distinct(flatten(col("temp_col")))))
+df.show(20,False)
+
+#+------------+----+--------+--------------------------------------------------------+---------------------+
+#|items       |node|orderCol|temp_col                                                |cumulative_item_count|
+#+------------+----+--------+--------------------------------------------------------+---------------------+
+#|[a, b, c, d]|r1  |1       |[[a, b, c, d]]                                          |4                    |
+#|[e, f, g, a]|r2  |2       |[[a, b, c, d], [e, f, g, a]]                            |7                    |
+#|[h, i, g, b]|r3  |3       |[[a, b, c, d], [e, f, g, a], [h, i, g, b]]              |9                    |
+#|[j, i, f, c]|r4  |4       |[[a, b, c, d], [e, f, g, a], [h, i, g, b], [j, i, f, c]]|10                   |
