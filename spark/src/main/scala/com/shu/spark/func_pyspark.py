@@ -141,3 +141,130 @@ df.show(20,False)
 #|[e, f, g, a]|r2  |2       |[[a, b, c, d], [e, f, g, a]]                            |7                    |
 #|[h, i, g, b]|r3  |3       |[[a, b, c, d], [e, f, g, a], [h, i, g, b]]              |9                    |
 #|[j, i, f, c]|r4  |4       |[[a, b, c, d], [e, f, g, a], [h, i, g, b], [j, i, f, c]]|10                   |
+
+#https://stackoverflow.com/questions/76061395/pass-column-names-dynamically-to-when-condition-to-check-is-null-condition-on-ea
+null_chk_ls = map(lambda x: func.col(x).isNull(), primary_key_columns)
+or_cond = reduce(lambda a, b: a|b, null_chk_ls)
+# Column<'((id IS NULL) OR (label IS NULL))'>
+
+data_sdf. \
+    withColumn('action', 
+               func.when(or_cond, func.lit('delete')).
+               otherwise('no delete')
+               ). \
+    show()
+
+# +----+-----+---------+
+# |  id|label|   action|
+# +----+-----+---------+
+# |   1|  foo|no delete|
+# |null|  bar|   delete|
+# |   3| null|   delete|
+# +----+-----+---------+
+
+#https://stackoverflow.com/questions/76073778/pyspark-replace-null-values-with-the-mean-of-corresponding-row
+'''count number of nulls and calculate the average value'''
+from pyspark.sql.functions import *
+from pyspark.sql.types import *
+df = spark.createDataFrame([(1,2,3),(4,None,6),(7,8,None)],['col1','col2','col3'])
+df.show(10,False)
+
+df1 = df.withColumn("nulls_count",size(filter(array(*[isnull(col(c)) for c in df.columns]), lambda x: x))).\
+  withColumn("arr_vals",array(*[coalesce(col(c),lit(0)) for c in df.columns])).\
+  withColumn("sum_elems",expr("aggregate(arr_vals,cast(0 as bigint),(acc, x) -> acc + x)")).\
+  withColumn("mean_val",expr('round(sum_elems/((size(arr_vals))-nulls_count),1)'))
+
+df1.select([when(col(c).isNull(), col("mean_val")).otherwise(col(c)).alias(c) for c in df.columns]).\
+  show(10, False)
+
+#https://stackoverflow.com/questions/76073065/pyspark-read-complex-json-file
+str = """{"tables":[{"name":"PrimaryResult","columns":[{"name":"TenantId","type":"string"},{"name":"TimeGenerated","type":"datetime"},{"name":"CorrelationId","type":"string"},{"name":"UserName","type":"string"}],"rows":[["1341234","5143534","14314123","test@test.cloud"]]}]}"""
+df = spark.read.json(sc.parallelize([str]))
+df = df.withColumn("tables", explode(col("tables"))).select("tables.*").withColumn("rows", explode(col("rows"))).withColumn("tmp", explode(arrays_zip("columns", "rows"))).select("tmp.columns.name", "tmp.rows")
+df.groupBy(lit(1)).pivot("name").agg(first(col("rows"))).drop("1").show()
+
+#https://stackoverflow.com/questions/76078849/explode-column-values-into-multiple-columns-in-pyspark
+#explode array_rows to columns using pivot.
+(
+    df
+    .withColumn('id', F.monotonically_increasing_id())
+    .selectExpr('id', "explode(substitutes) AS S")
+    .selectExpr('id', "'substitutes_' || S[0] AS col", "S[1] as val")
+    .groupby('id').pivot('col').agg(F.first('val'))
+    .drop('id')
+)
+# +-------------+-------------+-------------+-------------+-------------+
+# |substitutes_1|substitutes_2|substitutes_3|substitutes_4|substitutes_5|
+# +-------------+-------------+-------------+-------------+-------------+
+# |    598319049|     38453298|   2007569845|         null|         null|
+# |     30981733|         null|         null|         null|         null|
+# |    102649381|     10294853|     10294854|     44749181|     35132896|
+# |    849607426|    185158834|     11028011|     10309801|     11028010|
+# |     10307642|     10307636|     15754215|     45612359|     10307635|
+# |    730446111|    617024811|    665689309|    883699488|    159896736|
+# |     10290923|     33282357|         null|         null|         null|
+# |     43982130|     15556050|     15556051|     11961012|     16777263|
+# |     10309216|         null|         null|         null|         null|
+# |     21905160|     21609422|     21609417|     20554612|     20554601|
+# +-------------+-------------+-------------+-------------+-------------+
+
+#https://stackoverflow.com/questions/76076409/pyspark-reset-cumulative-sum-column-based-on-condition
+#reset after flag is true for window
+df = spark.createDataFrame(
+    [
+        (1001, "2023-04-01", False, 0, 0),
+        (1001, "2023-04-02", False, 0, 0),
+        (1001, "2023-04-03", False, 1, 1),
+        (1001, "2023-04-04", False, 1, 1),
+        (1001, "2023-04-05", True, 4, 3),
+        (1001, "2023-04-06", False, 4, 3),
+        (1001, "2023-04-07", False, 4, 3),
+        (1001, "2023-04-08", False, 10, 6),
+        (1001, "2023-04-09", True, 10, 0),
+        (1001, "2023-04-10", False, 12, 2),
+        (1001, "2023-04-11", False, 13, 3),
+    ],
+    ["id", "date", "reset", "cumsum", "new_cumsum"],
+)
+
+w = Window.orderBy("date")
+w2 = Window.partitionBy("partition").orderBy("date")
+df = df.withColumn("diff", col("cumsum") - lag("cumsum", default=0).over(w)) \
+    .withColumn("partition", when(~col("reset"), 0).otherwise(1)) \
+    .withColumn("partition", sum("partition").over(w)) \
+    .withColumn("new_cumsum_2", sum(col("diff")).over(w2)).drop("diff", "partition")
+
+df.show()
+# +----+----------+-----+------+----------+------------+
+# |  id|      date|reset|cumsum|new_cumsum|new_cumsum_2|
+# +----+----------+-----+------+----------+------------+
+# |1001|2023-04-01|false|     0|         0|           0|
+# |1001|2023-04-02|false|     0|         0|           0|
+# |1001|2023-04-03|false|     1|         1|           1|
+# |1001|2023-04-04|false|     1|         1|           1|
+# |1001|2023-04-05| true|     4|         3|           3|
+# |1001|2023-04-06|false|     4|         3|           3|
+# |1001|2023-04-07|false|     4|         3|           3|
+# |1001|2023-04-08|false|    10|         6|           9|
+# |1001|2023-04-09| true|    10|         0|           0|
+# |1001|2023-04-10|false|    12|         2|           2|
+# |1001|2023-04-11|false|    13|         3|           3|
+# +----+----------+-----+------+----------+------------+
+
+
+#https://stackoverflow.com/questions/76078929/flattening-nested-json-file-into-a-pyspark-df
+#key-value pair using stack function
+from pyspark.sql.functions import *
+str= """{"verifiedManifest":{"AB1":{"quantity":1}, "DE5":{"quantity":5}, "AG1":{"quantity":10}}}"""
+df = spark.read.json(sc.parallelize([str]))
+df1 = df.select("verifiedManifest.*")
+sz_cols = len(df1.columns).__format__('')
+stack_expr = f"stack({sz_cols}" +"," +','.join([f'"{f}",{f}.*' for f in df1.columns]) + ") as (verifiedManifest_name, verifiedManifest_quantity)"
+df1.select(expr(stack_expr)).show(10,False)
+# +---------------------+-------------------------+
+# |verifiedManifest_name|verifiedManifest_quantity|
+# +---------------------+-------------------------+
+# |AB1                  |1                        |
+# |AG1                  |10                       |
+# |DE5                  |5                        |
+# +---------------------+-------------------------+
