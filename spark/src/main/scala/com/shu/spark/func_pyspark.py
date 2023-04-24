@@ -285,4 +285,54 @@ df.withColumn("pos", expr('concat("pos_",pos,"_cpid")')).\
 #+------------------------------------+-------+---------+----------+----------+----------+----------+----------+
 #|7d6d7b44-440b-45d7-b25a-3d55817a889b|#      |152507105|390801409 |900045087 |280043267 |129141834 |335625185 |
 #|7d6d7b44-440b-45d7-b25a-3d55817a889b|#      |708542578|814735847 |596343371 |183692578 |222288904 |303519145 |
-#+------------------------------------+-------+---------+----------+----------+----------+----------+----------+    
+#+------------------------------------+-------+---------+----------+----------+----------+----------+----------+ 
+#
+# 
+# https://stackoverflow.com/questions/76084300/pyspark-pivot-dataframe/76084988#76084988
+df = spark.createDataFrame([
+("TenantId", "TennatId_1"),
+("TimeGenerated", "2023-04-17T11:50:51.9013145Z"),
+("ActivityType", "Connection"),
+("CorrelationId", "608dd49a"),
+("UserName", "test_1@test.cloud"),
+("Name", "Name1"),
+("Source", "Client"),
+("Parameters", "{}"),
+("SourceSystem", "Azure"),
+("Type", "Check"),
+("_ResourceId", "/subscriptions/5286ce"),
+("TenantId", "TennatId_2"),
+("TimeGenerated", "2023-04-17T11:50:51.944022Z"),
+("ActivityType", "Connection"),
+("CorrelationId", "11c0d75f0000"),
+("UserName", "test_2@test.cloud"),
+("Name", "Name2"),
+("Source", "Client"),
+("Parameters", "{}"),
+("SourceSystem", "Azure"),
+("Type", "Check"),
+("_ResourceId", "/subscriptions/5286ce38-272f-4c54")], ["name", "rows"]) 
+from pyspark.sql.functions import *
+df.groupBy(lit(1)).pivot("name").agg(first(col("rows"))).drop("1").show(10,False)
+#+------------+-------------+-----+----------+------+------------+----------+----------------------------+-----+-----------------+---------------------+
+#|ActivityType|CorrelationId|Name |Parameters|Source|SourceSystem|TenantId  |TimeGenerated               |Type |UserName         |_ResourceId          |
+#+------------+-------------+-----+----------+------+------------+----------+----------------------------+-----+-----------------+---------------------+
+#|Connection  |608dd49a     |Name1|{}        |Client|Azure       |TennatId_1|2023-04-17T11:50:51.9013145Z|Check|test_1@test.cloud|/subscriptions/5286ce|
+#+------------+-------------+-----+----------+------+------------+----------+----------------------------+-----+-----------------+---------------------+   
+#define window
+w=Window.partitionBy(lit("1")).orderBy("mid")
+
+#add order id column and temporary window partition
+df1 = df.withColumn("mid",monotonically_increasing_id()).\
+  withColumn("temp_win", when(col("rows").rlike("^TennatId"),lit(1)).otherwise(lit(0))).\
+  withColumn("windw", sum(col("temp_win")).over(w))
+
+#pivot and window
+df1.groupBy("windw").pivot("name").agg(first(col("rows"))).drop("windw").show(10,False)
+
+#+------------+-------------+-----+----------+------+------------+----------+----------------------------+-----+-----------------+---------------------------------+
+|ActivityType|CorrelationId|Name |Parameters|Source|SourceSystem|TenantId  |TimeGenerated               |Type |UserName         |_ResourceId                      |
++------------+-------------+-----+----------+------+------------+----------+----------------------------+-----+-----------------+---------------------------------+
+#|Connection  |608dd49a     |Name1|{}        |Client|Azure       |TennatId_1|2023-04-17T11:50:51.9013145Z|Check|test_1@test.cloud|/subscriptions/5286ce            |
+#|Connection  |11c0d75f0000 |Name2|{}        |Client|Azure       |TennatId_2|2023-04-17T11:50:51.944022Z |Check|test_2@test.cloud|/subscriptions/5286ce38-272f-4c54|
+#+------------+-------------+-----+----------+------+------------+----------+----------------------------+-----+-----------------+---------------------------------+
