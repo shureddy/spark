@@ -331,8 +331,15 @@ df1 = df.withColumn("mid",monotonically_increasing_id()).\
 df1.groupBy("windw").pivot("name").agg(first(col("rows"))).drop("windw").show(10,False)
 
 #+------------+-------------+-----+----------+------+------------+----------+----------------------------+-----+-----------------+---------------------------------+
-|ActivityType|CorrelationId|Name |Parameters|Source|SourceSystem|TenantId  |TimeGenerated               |Type |UserName         |_ResourceId                      |
-+------------+-------------+-----+----------+------+------------+----------+----------------------------+-----+-----------------+---------------------------------+
+#|ActivityType|CorrelationId|Name |Parameters|Source|SourceSystem|TenantId  |TimeGenerated               |Type |UserName         |_ResourceId                      |
+#+------------+-------------+-----+----------+------+------------+----------+----------------------------+-----+-----------------+---------------------------------+
 #|Connection  |608dd49a     |Name1|{}        |Client|Azure       |TennatId_1|2023-04-17T11:50:51.9013145Z|Check|test_1@test.cloud|/subscriptions/5286ce            |
 #|Connection  |11c0d75f0000 |Name2|{}        |Client|Azure       |TennatId_2|2023-04-17T11:50:51.944022Z |Check|test_2@test.cloud|/subscriptions/5286ce38-272f-4c54|
 #+------------+-------------+-----+----------+------+------------+----------+----------------------------+-----+-----------------+---------------------------------+
+
+#https://stackoverflow.com/questions/76092684/how-to-get-the-line-number-of-each-line-across-multiple-files-in-spark/76092926#76092926
+from pyspark.sql import *
+from pyspark.sql.functions import *
+df1 = df1.withColumn("mid", monotonically_increasing_id())
+windowSpec = W.orderBy("mid")
+df1 = df1.withColumn("line_num", row_number().over(windowSpec)).show()
