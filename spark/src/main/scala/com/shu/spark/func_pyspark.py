@@ -343,3 +343,40 @@ from pyspark.sql.functions import *
 df1 = df1.withColumn("mid", monotonically_increasing_id())
 windowSpec = W.orderBy("mid")
 df1 = df1.withColumn("line_num", row_number().over(windowSpec)).show()
+
+#---
+#https://stackoverflow.com/questions/76104265/pyspark-dataframe-collect-list-for-overlaping-windows-starting-at-each-non-null/76106639#76106639
+#Create an index column by using monotonically_increasing_id and then Divide the row_number() with 4.
+#Finally collect_list if v1 is not null for the window current_row, unboundedFollowing.
+from pyspark.sql.functions import *
+from pyspark.sql import *
+df = spark.createDataFrame([('a','2000-01-01',None,'0.1'),
+('a','2000-01-02',1,'0.2'),
+('a','2000-01-03',None,'0.3'),
+('a','2000-01-04',None,'0.4'),
+('a','2000-01-05',2,'0.5'),
+('a','2000-01-06',None,'0.6'),
+('a','2000-01-07',None,'0.7'),
+('b','2000-01-08',None,'0.8')],['name','date','v1','v2'])
+
+windowSpec = Window.orderBy("mid")
+windowSpec2 = Window.partitionBy("wndw").orderBy("mid").rowsBetween(Window.currentRow, Window.unboundedFollowing)
+
+df = df.withColumn("mid",monotonically_increasing_id()).\
+  withColumn("wndw", ceil(row_number().over(windowSpec)/4)).\
+  withColumn("acc", when(col("v1").isNotNull(),collect_list(col("v2")).over(windowSpec2)).otherwise(array(lit(None))))
+
+df.show(10,False)
+
+#+----+----------+----+---+------------+----+--------------------+
+#|name|date      |v1  |v2 |mid         |wndw|acc                 |
+#+----+----------+----+---+------------+----+--------------------+
+#|a   |2000-01-01|null|0.1|25769803776 |1   |[null]              |
+#|a   |2000-01-02|1   |0.2|60129542144 |1   |[0.2, 0.3, 0.4]     |
+#|a   |2000-01-03|null|0.3|94489280512 |1   |[null]              |
+#|a   |2000-01-04|null|0.4|128849018880|1   |[null]              |
+#|a   |2000-01-05|2   |0.5|163208757248|2   |[0.5, 0.6, 0.7, 0.8]|
+#|a   |2000-01-06|null|0.6|197568495616|2   |[null]              |
+#|a   |2000-01-07|null|0.7|231928233984|2   |[null]              |
+#|b   |2000-01-08|null|0.8|266287972352|2   |[null]              |
+#+----+----------+----+---+------------+----+--------------------+
