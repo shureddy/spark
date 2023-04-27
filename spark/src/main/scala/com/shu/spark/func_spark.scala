@@ -985,6 +985,33 @@ object func_spark {
       val sour2 = Array(fruits("mang", 1), fruits("mang", 2), fruits("ols", 2))
       val ds_sour2 = spark.createDataset(sour2)
       ds_sour2.show()
+      
+      /*
+      create dynamic columns from spark
+      */
+      import org.apache.spark.sql.functions._
+val str= """{
+  "meta" : {},
+  "data" : [ 
+    [ 1, "a1", "b1" ],
+    [ 2, "a2", "b2" ],
+    [ 3, "a3", "b3" ]
+  ]
+}"""
+//create dataset with the json string
+val ds = spark.createDataset(str :: Nil)
+//read the dataset as json
+val df=spark.read.json(ds)
+val explode_df = df.select(explode(col("data")))
+explode_df.select((0 until 3).map(i => col("col")(i).alias(s"col$i")): _*).toDF("id","A","B").show(10,false)
+
+//+---+---+---+
+//|id |A  |B  |
+//+---+---+---+
+//|1  |a1 |b1 |
+//|2  |a2 |b2 |
+//|3  |a3 |b3 |
+//+---+---+---+
 
     } catch {
       case e: Exception => println("exception caught: " + e)
