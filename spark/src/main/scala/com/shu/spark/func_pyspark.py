@@ -380,3 +380,30 @@ df.show(10,False)
 #|a   |2000-01-07|null|0.7|231928233984|2   |[null]              |
 #|b   |2000-01-08|null|0.8|266287972352|2   |[null]              |
 #+----+----------+----+---+------------+----+--------------------+
+
+#https://stackoverflow.com/questions/76123779/pyspark-trimming-all-columns-in-a-dataframe-to-100-characters/76124187#76124187
+#substring on all columns
+from pyspark.sql.functions import *
+df = spark.createDataFrame([('a','1','a')],['i','j','k'])
+df.select([substring(col(f),0,100).alias(f) for f in df.columns]).show(10,False)
+#+---+---+---+
+#|i  |j  |k  |
+#+---+---+---+
+#|a  |1  |a  |
+#+---+---+---+
+
+#https://stackoverflow.com/questions/76122909/join-two-tables-while-multiplying-columns-x-rows-in-scala
+#create aggregate records
+cols = ['item1', 'item2', 'item3']
+df = spark.createDataFrame([('user1',[1,2,3]),('user2',[4,5,6]),('user3',[7,8,9])],['user_id','value'])
+df1 = spark.createDataFrame([([0.5,0.6,0.7],[0.2,0.3,0.4],[0.1,0.8,0.9])],['item1','item2','item3'])
+df2 = df.join(df1).select('user_id', *[arrays_zip(col('value'), c).alias(c) for c in cols])
+
+df2.select('user_id',"item1","item2","item3",*[aggregate(c, lit(0.0), lambda acc, x: acc + x['value'] * x[c]).alias(c+"i") for c in cols]).show(10,False)
+#+-------+------------------------------+------------------------------+------------------------------+------------------+------+------+
+#|user_id|item1                         |item2                         |item3                         |item1i            |item2i|item3i|
+#+-------+------------------------------+------------------------------+------------------------------+------------------+------+------+
+#|user1  |[{1, 0.5}, {2, 0.6}, {3, 0.7}]|[{1, 0.2}, {2, 0.3}, {3, 0.4}]|[{1, 0.1}, {2, 0.8}, {3, 0.9}]|3.8               |2.0   |4.4   |
+#|user2  |[{4, 0.5}, {5, 0.6}, {6, 0.7}]|[{4, 0.2}, {5, 0.3}, {6, 0.4}]|[{4, 0.1}, {5, 0.8}, {6, 0.9}]|9.2               |4.7   |9.8   |
+#|user3  |[{7, 0.5}, {8, 0.6}, {9, 0.7}]|[{7, 0.2}, {8, 0.3}, {9, 0.4}]|[{7, 0.1}, {8, 0.8}, {9, 0.9}]|14.600000000000001|7.4   |15.2  |
+#+-------+------------------------------+------------------------------+------------------------------+------------------+------+------+
