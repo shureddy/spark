@@ -407,3 +407,103 @@ df2.select('user_id',"item1","item2","item3",*[aggregate(c, lit(0.0), lambda acc
 #|user2  |[{4, 0.5}, {5, 0.6}, {6, 0.7}]|[{4, 0.2}, {5, 0.3}, {6, 0.4}]|[{4, 0.1}, {5, 0.8}, {6, 0.9}]|9.2               |4.7   |9.8   |
 #|user3  |[{7, 0.5}, {8, 0.6}, {9, 0.7}]|[{7, 0.2}, {8, 0.3}, {9, 0.4}]|[{7, 0.1}, {8, 0.8}, {9, 0.9}]|14.600000000000001|7.4   |15.2  |
 #+-------+------------------------------+------------------------------+------------------------------+------------------+------+------+
+
+
+#https://stackoverflow.com/questions/76134363/parsing-json-with-pyspark-transformations
+
+import json
+
+simple_json = {}
+
+with open("test_2.json") as file:
+    data = json.load(file)
+
+lst = []
+for k, v in data.items():
+    lst.append(v)
+simple_json["results"] = lst
+
+rddjson = sc.parallelize([simple_json])
+df = sqlContext.read.json(rddjson, multiLine=True)
+df.show()
+
+from pyspark.sql import functions as F
+df.select(F.explode(df.results).alias('results')).select('results.*').show(truncate=False)
+
+
+#https://stackoverflow.com/questions/76168647/flatten-pyspark-dataframe
+#json struct values dynamic flatten.
+df = spark.createDataFrame([('someval','{"column1": "value1"}')],['key', 'content'])
+
+sch=StructType([StructField("column1",StringType(),True)])
+
+df.withColumn("tmp", from_json(col("content"), sch)).\
+  select("key","tmp.*").\
+    show(10,False)
+
+df1 = df.select('key', from_json('content', MapType(StringType(), StringType())))
+
+df2 = df1.select('key', explode('entries').alias('cols','rows'))
+
+df2.groupBy('key').pivot('cols').agg(first('rows')).show()
+# +-------+-------+
+# |key    |column1|
+# +-------+-------+
+# |someval|value1 |
+# +-------+-------+
+
+
+import pandas as pd
+from pyspark.sql.types import StructType, StructField, IntegerType, ArrayType, StringType, MapType
+from pyspark.sql.functions import *
+
+jsonString1 = """
+  [
+    {
+      "person_id": 1,
+      "address": {}
+    }
+  ]
+"""
+
+jsonString2 = """
+  [
+    {
+      "person_id": 1,
+      "address": {
+        "line1": {
+            "foo": "bar"
+          }
+      }
+    }
+  ]
+"""
+#https://stackoverflow.com/questions/76165920/how-can-i-skip-commands-from-running-if-row-doesnt-meet-some-criteria
+# json when array is empty.
+# Define a schema so no error is given when `address` is empty
+schema = StructType([
+    StructField("person_id", IntegerType(), True),
+    StructField(
+      "address", 
+      MapType(
+        StringType(), MapType(StringType(), StringType())), True)
+])
+pdf = pd.read_json(jsonString1)
+df = spark.createDataFrame(pdf, schema=schema)
+
+df1 = (df
+       .select(col("person_id"), col("address"))
+       .withColumn(
+           "tmp",
+           when(size(col("address")) > 0,  # use when for the case address is empty
+                col("address")).otherwise(
+               lit(None).cast(   
+MapType(StringType(), MapType(StringType(), StringType())))
+)
+       )
+       .select(col("person_id"), explode(col("tmp")).alias("key", "exploded_address"))
+       .select(col("person_id"), col("exploded_address"))
+       # other commands
+       )
+
+df1.collect()
