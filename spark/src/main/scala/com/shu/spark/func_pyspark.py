@@ -507,3 +507,57 @@ MapType(StringType(), MapType(StringType(), StringType())))
        )
 
 df1.collect()
+
+#https://stackoverflow.com/questions/76180934/flatten-nested-json-struct-with-dynamic-keys-in-pyspark
+#dynamic key value flatten in json doc
+#id	json_column
+#1	"{1: {amount: 1, time: 2}, 2: {amount: 10, time: 5}}"
+#2	"{3: {amount: 1, time: 2}, 4: {amount: 10, time: 5}"
+
+map_schema=MapType(StringType(), StructType([\
+    StructField('amount', StringType(), True),\
+    StructField('time', StringType(),True)\
+]));
+
+df\
+.withColumn("json_column", F.from_json(F.col("json_column"), map_schema, {"allowUnquotedFieldNames":"true"}))\
+.select("*", F.explode("json_column").alias("key", "value"))\
+.select("id", "value.*")\
+.show(truncate=False)
+
+#dynamic stack and flatten the data.
+#https://stackoverflow.com/questions/76202343/pyspark-aggregation-based-on-key-and-value-expanded-in-multiple-columns
+df = spark.createDataFrame([(100,1,'A',5,'X',10,'L',20),(100,2,'B',5,'L',10,'A',20)],['id1','item','code_1','value_1','code_2','value_2','code_3','value_3'])
+
+req_cols = [c for c in df.columns if c.startswith("code_") or c.startswith("value_")]
+
+sql_expr = "stack("+ str(int(len(req_cols)/2))+"," +','.join(req_cols) +")"
+
+df.show()
+df1 = df.select("id1",'item',expr(f"{sql_expr}")).\
+  groupBy("id1","col0").agg(sum("col1").alias("sum")).\
+    withColumn("col0",concat(lit("sum_"),col("col0")))
+df.select("id1","item").distinct().\
+  join(df1,['id1']).\
+    groupBy("id1","item").\
+      pivot("col0").\
+        agg(first(col("sum").alias("sum_"))).\
+        show()
+
+#window on id and sum on two columns
+df = df.select('id1', 'item', 
+               *[F.sum(x).over(Window.partitionBy('id1')).alias(f'sum_{x}') 
+                 for x in df.columns if x not in ['id1', 'item']])
+# +---+----+------+-------+------+-------+------+-------+
+# |id1|item|code_1|value_1|code_2|value_2|code_3|value_3|
+# +---+----+------+-------+------+-------+------+-------+
+# |100|   1|     A|      5|     X|     10|     L|     20|
+# |100|   2|     B|      5|     L|     10|     A|     20|
+# +---+----+------+-------+------+-------+------+-------+
+
+# +---+----+-----+-----+-----+-----+
+# |id1|item|sum_A|sum_B|sum_L|sum_X|
+# +---+----+-----+-----+-----+-----+
+# |100|   2|   25|    5|   30|   10|
+# |100|   1|   25|    5|   30|   10|
+# +---+----+-----+-----+-----+-----+
