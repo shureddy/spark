@@ -285,4 +285,308 @@ df.withColumn("pos", expr('concat("pos_",pos,"_cpid")')).\
 #+------------------------------------+-------+---------+----------+----------+----------+----------+----------+
 #|7d6d7b44-440b-45d7-b25a-3d55817a889b|#      |152507105|390801409 |900045087 |280043267 |129141834 |335625185 |
 #|7d6d7b44-440b-45d7-b25a-3d55817a889b|#      |708542578|814735847 |596343371 |183692578 |222288904 |303519145 |
-#+------------------------------------+-------+---------+----------+----------+----------+----------+----------+    
+#+------------------------------------+-------+---------+----------+----------+----------+----------+----------+ 
+#
+# 
+# https://stackoverflow.com/questions/76084300/pyspark-pivot-dataframe/76084988#76084988
+df = spark.createDataFrame([
+("TenantId", "TennatId_1"),
+("TimeGenerated", "2023-04-17T11:50:51.9013145Z"),
+("ActivityType", "Connection"),
+("CorrelationId", "608dd49a"),
+("UserName", "test_1@test.cloud"),
+("Name", "Name1"),
+("Source", "Client"),
+("Parameters", "{}"),
+("SourceSystem", "Azure"),
+("Type", "Check"),
+("_ResourceId", "/subscriptions/5286ce"),
+("TenantId", "TennatId_2"),
+("TimeGenerated", "2023-04-17T11:50:51.944022Z"),
+("ActivityType", "Connection"),
+("CorrelationId", "11c0d75f0000"),
+("UserName", "test_2@test.cloud"),
+("Name", "Name2"),
+("Source", "Client"),
+("Parameters", "{}"),
+("SourceSystem", "Azure"),
+("Type", "Check"),
+("_ResourceId", "/subscriptions/5286ce38-272f-4c54")], ["name", "rows"]) 
+from pyspark.sql.functions import *
+df.groupBy(lit(1)).pivot("name").agg(first(col("rows"))).drop("1").show(10,False)
+#+------------+-------------+-----+----------+------+------------+----------+----------------------------+-----+-----------------+---------------------+
+#|ActivityType|CorrelationId|Name |Parameters|Source|SourceSystem|TenantId  |TimeGenerated               |Type |UserName         |_ResourceId          |
+#+------------+-------------+-----+----------+------+------------+----------+----------------------------+-----+-----------------+---------------------+
+#|Connection  |608dd49a     |Name1|{}        |Client|Azure       |TennatId_1|2023-04-17T11:50:51.9013145Z|Check|test_1@test.cloud|/subscriptions/5286ce|
+#+------------+-------------+-----+----------+------+------------+----------+----------------------------+-----+-----------------+---------------------+   
+#define window
+w=Window.partitionBy(lit("1")).orderBy("mid")
+
+#add order id column and temporary window partition
+df1 = df.withColumn("mid",monotonically_increasing_id()).\
+  withColumn("temp_win", when(col("rows").rlike("^TennatId"),lit(1)).otherwise(lit(0))).\
+  withColumn("windw", sum(col("temp_win")).over(w))
+
+#pivot and window
+df1.groupBy("windw").pivot("name").agg(first(col("rows"))).drop("windw").show(10,False)
+
+#+------------+-------------+-----+----------+------+------------+----------+----------------------------+-----+-----------------+---------------------------------+
+#|ActivityType|CorrelationId|Name |Parameters|Source|SourceSystem|TenantId  |TimeGenerated               |Type |UserName         |_ResourceId                      |
+#+------------+-------------+-----+----------+------+------------+----------+----------------------------+-----+-----------------+---------------------------------+
+#|Connection  |608dd49a     |Name1|{}        |Client|Azure       |TennatId_1|2023-04-17T11:50:51.9013145Z|Check|test_1@test.cloud|/subscriptions/5286ce            |
+#|Connection  |11c0d75f0000 |Name2|{}        |Client|Azure       |TennatId_2|2023-04-17T11:50:51.944022Z |Check|test_2@test.cloud|/subscriptions/5286ce38-272f-4c54|
+#+------------+-------------+-----+----------+------+------------+----------+----------------------------+-----+-----------------+---------------------------------+
+
+#https://stackoverflow.com/questions/76092684/how-to-get-the-line-number-of-each-line-across-multiple-files-in-spark/76092926#76092926
+from pyspark.sql import *
+from pyspark.sql.functions import *
+df1 = df1.withColumn("mid", monotonically_increasing_id())
+windowSpec = W.orderBy("mid")
+df1 = df1.withColumn("line_num", row_number().over(windowSpec)).show()
+
+#---
+#https://stackoverflow.com/questions/76104265/pyspark-dataframe-collect-list-for-overlaping-windows-starting-at-each-non-null/76106639#76106639
+#Create an index column by using monotonically_increasing_id and then Divide the row_number() with 4.
+#Finally collect_list if v1 is not null for the window current_row, unboundedFollowing.
+from pyspark.sql.functions import *
+from pyspark.sql import *
+df = spark.createDataFrame([('a','2000-01-01',None,'0.1'),
+('a','2000-01-02',1,'0.2'),
+('a','2000-01-03',None,'0.3'),
+('a','2000-01-04',None,'0.4'),
+('a','2000-01-05',2,'0.5'),
+('a','2000-01-06',None,'0.6'),
+('a','2000-01-07',None,'0.7'),
+('b','2000-01-08',None,'0.8')],['name','date','v1','v2'])
+
+windowSpec = Window.orderBy("mid")
+windowSpec2 = Window.partitionBy("wndw").orderBy("mid").rowsBetween(Window.currentRow, Window.unboundedFollowing)
+
+df = df.withColumn("mid",monotonically_increasing_id()).\
+  withColumn("wndw", ceil(row_number().over(windowSpec)/4)).\
+  withColumn("acc", when(col("v1").isNotNull(),collect_list(col("v2")).over(windowSpec2)).otherwise(array(lit(None))))
+
+df.show(10,False)
+
+#+----+----------+----+---+------------+----+--------------------+
+#|name|date      |v1  |v2 |mid         |wndw|acc                 |
+#+----+----------+----+---+------------+----+--------------------+
+#|a   |2000-01-01|null|0.1|25769803776 |1   |[null]              |
+#|a   |2000-01-02|1   |0.2|60129542144 |1   |[0.2, 0.3, 0.4]     |
+#|a   |2000-01-03|null|0.3|94489280512 |1   |[null]              |
+#|a   |2000-01-04|null|0.4|128849018880|1   |[null]              |
+#|a   |2000-01-05|2   |0.5|163208757248|2   |[0.5, 0.6, 0.7, 0.8]|
+#|a   |2000-01-06|null|0.6|197568495616|2   |[null]              |
+#|a   |2000-01-07|null|0.7|231928233984|2   |[null]              |
+#|b   |2000-01-08|null|0.8|266287972352|2   |[null]              |
+#+----+----------+----+---+------------+----+--------------------+
+
+#https://stackoverflow.com/questions/76123779/pyspark-trimming-all-columns-in-a-dataframe-to-100-characters/76124187#76124187
+#substring on all columns
+from pyspark.sql.functions import *
+df = spark.createDataFrame([('a','1','a')],['i','j','k'])
+df.select([substring(col(f),0,100).alias(f) for f in df.columns]).show(10,False)
+#+---+---+---+
+#|i  |j  |k  |
+#+---+---+---+
+#|a  |1  |a  |
+#+---+---+---+
+
+#https://stackoverflow.com/questions/76122909/join-two-tables-while-multiplying-columns-x-rows-in-scala
+#create aggregate records
+cols = ['item1', 'item2', 'item3']
+df = spark.createDataFrame([('user1',[1,2,3]),('user2',[4,5,6]),('user3',[7,8,9])],['user_id','value'])
+df1 = spark.createDataFrame([([0.5,0.6,0.7],[0.2,0.3,0.4],[0.1,0.8,0.9])],['item1','item2','item3'])
+df2 = df.join(df1).select('user_id', *[arrays_zip(col('value'), c).alias(c) for c in cols])
+
+df2.select('user_id',"item1","item2","item3",*[aggregate(c, lit(0.0), lambda acc, x: acc + x['value'] * x[c]).alias(c+"i") for c in cols]).show(10,False)
+#+-------+------------------------------+------------------------------+------------------------------+------------------+------+------+
+#|user_id|item1                         |item2                         |item3                         |item1i            |item2i|item3i|
+#+-------+------------------------------+------------------------------+------------------------------+------------------+------+------+
+#|user1  |[{1, 0.5}, {2, 0.6}, {3, 0.7}]|[{1, 0.2}, {2, 0.3}, {3, 0.4}]|[{1, 0.1}, {2, 0.8}, {3, 0.9}]|3.8               |2.0   |4.4   |
+#|user2  |[{4, 0.5}, {5, 0.6}, {6, 0.7}]|[{4, 0.2}, {5, 0.3}, {6, 0.4}]|[{4, 0.1}, {5, 0.8}, {6, 0.9}]|9.2               |4.7   |9.8   |
+#|user3  |[{7, 0.5}, {8, 0.6}, {9, 0.7}]|[{7, 0.2}, {8, 0.3}, {9, 0.4}]|[{7, 0.1}, {8, 0.8}, {9, 0.9}]|14.600000000000001|7.4   |15.2  |
+#+-------+------------------------------+------------------------------+------------------------------+------------------+------+------+
+
+
+#https://stackoverflow.com/questions/76134363/parsing-json-with-pyspark-transformations
+
+import json
+
+simple_json = {}
+
+with open("test_2.json") as file:
+    data = json.load(file)
+
+lst = []
+for k, v in data.items():
+    lst.append(v)
+simple_json["results"] = lst
+
+rddjson = sc.parallelize([simple_json])
+df = sqlContext.read.json(rddjson, multiLine=True)
+df.show()
+
+from pyspark.sql import functions as F
+df.select(F.explode(df.results).alias('results')).select('results.*').show(truncate=False)
+
+
+#https://stackoverflow.com/questions/76168647/flatten-pyspark-dataframe
+#json struct values dynamic flatten.
+df = spark.createDataFrame([('someval','{"column1": "value1"}')],['key', 'content'])
+
+sch=StructType([StructField("column1",StringType(),True)])
+
+df.withColumn("tmp", from_json(col("content"), sch)).\
+  select("key","tmp.*").\
+    show(10,False)
+
+df1 = df.select('key', from_json('content', MapType(StringType(), StringType())))
+
+df2 = df1.select('key', explode('entries').alias('cols','rows'))
+
+df2.groupBy('key').pivot('cols').agg(first('rows')).show()
+# +-------+-------+
+# |key    |column1|
+# +-------+-------+
+# |someval|value1 |
+# +-------+-------+
+
+
+import pandas as pd
+from pyspark.sql.types import StructType, StructField, IntegerType, ArrayType, StringType, MapType
+from pyspark.sql.functions import *
+
+jsonString1 = """
+  [
+    {
+      "person_id": 1,
+      "address": {}
+    }
+  ]
+"""
+
+jsonString2 = """
+  [
+    {
+      "person_id": 1,
+      "address": {
+        "line1": {
+            "foo": "bar"
+          }
+      }
+    }
+  ]
+"""
+#https://stackoverflow.com/questions/76165920/how-can-i-skip-commands-from-running-if-row-doesnt-meet-some-criteria
+# json when array is empty.
+# Define a schema so no error is given when `address` is empty
+schema = StructType([
+    StructField("person_id", IntegerType(), True),
+    StructField(
+      "address", 
+      MapType(
+        StringType(), MapType(StringType(), StringType())), True)
+])
+pdf = pd.read_json(jsonString1)
+df = spark.createDataFrame(pdf, schema=schema)
+
+df1 = (df
+       .select(col("person_id"), col("address"))
+       .withColumn(
+           "tmp",
+           when(size(col("address")) > 0,  # use when for the case address is empty
+                col("address")).otherwise(
+               lit(None).cast(   
+MapType(StringType(), MapType(StringType(), StringType())))
+)
+       )
+       .select(col("person_id"), explode(col("tmp")).alias("key", "exploded_address"))
+       .select(col("person_id"), col("exploded_address"))
+       # other commands
+       )
+
+df1.collect()
+
+#https://stackoverflow.com/questions/76180934/flatten-nested-json-struct-with-dynamic-keys-in-pyspark
+#dynamic key value flatten in json doc
+#id	json_column
+#1	"{1: {amount: 1, time: 2}, 2: {amount: 10, time: 5}}"
+#2	"{3: {amount: 1, time: 2}, 4: {amount: 10, time: 5}"
+
+map_schema=MapType(StringType(), StructType([\
+    StructField('amount', StringType(), True),\
+    StructField('time', StringType(),True)\
+]));
+
+df\
+.withColumn("json_column", F.from_json(F.col("json_column"), map_schema, {"allowUnquotedFieldNames":"true"}))\
+.select("*", F.explode("json_column").alias("key", "value"))\
+.select("id", "value.*")\
+.show(truncate=False)
+
+#dynamic stack and flatten the data.
+#https://stackoverflow.com/questions/76202343/pyspark-aggregation-based-on-key-and-value-expanded-in-multiple-columns
+df = spark.createDataFrame([(100,1,'A',5,'X',10,'L',20),(100,2,'B',5,'L',10,'A',20)],['id1','item','code_1','value_1','code_2','value_2','code_3','value_3'])
+
+req_cols = [c for c in df.columns if c.startswith("code_") or c.startswith("value_")]
+
+sql_expr = "stack("+ str(int(len(req_cols)/2))+"," +','.join(req_cols) +")"
+
+df.show()
+df1 = df.select("id1",'item',expr(f"{sql_expr}")).\
+  groupBy("id1","col0").agg(sum("col1").alias("sum")).\
+    withColumn("col0",concat(lit("sum_"),col("col0")))
+df.select("id1","item").distinct().\
+  join(df1,['id1']).\
+    groupBy("id1","item").\
+      pivot("col0").\
+        agg(first(col("sum").alias("sum_"))).\
+        show()
+
+#window on id and sum on two columns
+df = df.select('id1', 'item', 
+               *[F.sum(x).over(Window.partitionBy('id1')).alias(f'sum_{x}') 
+                 for x in df.columns if x not in ['id1', 'item']])
+# +---+----+------+-------+------+-------+------+-------+
+# |id1|item|code_1|value_1|code_2|value_2|code_3|value_3|
+# +---+----+------+-------+------+-------+------+-------+
+# |100|   1|     A|      5|     X|     10|     L|     20|
+# |100|   2|     B|      5|     L|     10|     A|     20|
+# +---+----+------+-------+------+-------+------+-------+
+
+# +---+----+-----+-----+-----+-----+
+# |id1|item|sum_A|sum_B|sum_L|sum_X|
+# +---+----+-----+-----+-----+-----+
+# |100|   2|   25|    5|   30|   10|
+# |100|   1|   25|    5|   30|   10|
+# +---+----+-----+-----+-----+-----+
+
+#https://stackoverflow.com/questions/76208282/append-a-new-column-list-of-values-in-pyspark/76209479#76209479
+#append list to the dataframe
+
+from pyspark.sql.functions import *
+from pyspark.sql.types import *
+df= spark.createDataFrame([('Emma Larter',34),('Mia Junior',59),('Sophia',32),('James',40)],['Name','Age'])
+df_ind = spark.createDataFrame(df.rdd.zipWithIndex(),['val','ind'])
+Salary = [35000, 24000, 55000, 40000]
+df_salary = spark.createDataFrame(spark.createDataFrame(Salary, IntegerType()).rdd.zipWithIndex(),['val1','ind'])
+df_ind.join(df_salary,['ind']).select("val.*","val1.*").drop('ind').show()
+
+#+-----------+---+-----+
+#|       Name|Age|value|
+#+-----------+---+-----+
+#|Emma Larter| 34|35000|
+#| Mia Junior| 59|24000|
+#|     Sophia| 32|55000|
+#|      James| 40|40000|
+#+-----------+---+-----+
+
+#https://stackoverflow.com/questions/76234403/spark-merging-the-schema-of-two-array-columns-with-different-struct-fields
+#union two nested types with different schema
+df.union(
+  df2
+    .withColumn("LineItems",
+      expr("transform(LineItems, x -> named_struct('ItemID', x.ItemID, 'Name', x.Name, 'DiscountRate', null))")
+    )
+)
