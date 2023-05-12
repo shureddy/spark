@@ -561,3 +561,32 @@ df = df.select('id1', 'item',
 # |100|   2|   25|    5|   30|   10|
 # |100|   1|   25|    5|   30|   10|
 # +---+----+-----+-----+-----+-----+
+
+#https://stackoverflow.com/questions/76208282/append-a-new-column-list-of-values-in-pyspark/76209479#76209479
+#append list to the dataframe
+
+from pyspark.sql.functions import *
+from pyspark.sql.types import *
+df= spark.createDataFrame([('Emma Larter',34),('Mia Junior',59),('Sophia',32),('James',40)],['Name','Age'])
+df_ind = spark.createDataFrame(df.rdd.zipWithIndex(),['val','ind'])
+Salary = [35000, 24000, 55000, 40000]
+df_salary = spark.createDataFrame(spark.createDataFrame(Salary, IntegerType()).rdd.zipWithIndex(),['val1','ind'])
+df_ind.join(df_salary,['ind']).select("val.*","val1.*").drop('ind').show()
+
+#+-----------+---+-----+
+#|       Name|Age|value|
+#+-----------+---+-----+
+#|Emma Larter| 34|35000|
+#| Mia Junior| 59|24000|
+#|     Sophia| 32|55000|
+#|      James| 40|40000|
+#+-----------+---+-----+
+
+#https://stackoverflow.com/questions/76234403/spark-merging-the-schema-of-two-array-columns-with-different-struct-fields
+#union two nested types with different schema
+df.union(
+  df2
+    .withColumn("LineItems",
+      expr("transform(LineItems, x -> named_struct('ItemID', x.ItemID, 'Name', x.Name, 'DiscountRate', null))")
+    )
+)
