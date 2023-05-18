@@ -721,3 +721,16 @@ df_grouped.show(truncate=False)
 # |2      |[8, 9]       |[A, F]           |
 # |3      |[20, 20, 21] |[T, S, C]        |
 # +-------+-------------+-----------------+
+
+
+#create json output with out column name
+#https://stackoverflow.com/questions/76280090/how-do-i-read-a-json-as-a-string-or-dictionary-from-a-column-in-spark-dataframe
+#save as text file to remove the header false.
+from pyspark.sql.functions import *
+df = spark.createDataFrame([(1, "foo"),(2, "bar"),],["id", "label"])
+
+df1= df.withColumn("temp", concat_ws(" ", *df.columns)).groupBy(lit(1)).agg(array_join(collect_list(col("temp"))," ").alias("new_column")).drop("1")
+
+print(df1.select(struct(col("new_column")).alias("new")).toJSON().collect()[0])
+#{"new":{"new_column":"1 foo 2 bar"}}
+df.coalesce(1).write.format("text").option("header", "false").save("output.txt")
