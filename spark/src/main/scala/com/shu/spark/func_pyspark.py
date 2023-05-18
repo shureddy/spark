@@ -590,3 +590,134 @@ df.union(
       expr("transform(LineItems, x -> named_struct('ItemID', x.ItemID, 'Name', x.Name, 'DiscountRate', null))")
     )
 )
+
+#https://stackoverflow.com/questions/76247075/how-can-i-label-rows-before-and-after-an-event-in-pyspark
+#window find event and mark all the item before as before
+#after the event happend as after and event as event using window
+df = spark.createDataFrame([(1,1657610298,0),
+(1,1657610299,0),
+(1,1657610300,0),
+(1,1657610301,1),
+(1,1657610302,0),
+(1,1657610303,0),
+(1,1657610304,0),
+(2,1657610298,0),
+(2,1657610299,0),
+(2,1657610300,0),
+(2,1657610301,1),
+(2,1657610302,0),
+(2,1657610303,0),
+(2,1657610304,0)],['ID','timestamp','event'])
+from pyspark.sql import *
+from pyspark.sql.functions import *
+df_windw = df.withColumn("temp_col",max(col("Event")).over(Window.partitionBy('ID').orderBy("timestamp").rowsBetween(Window.unboundedPreceding, Window.currentRow))).\
+  withColumn("type2", when((col("event")== 0) & (col("temp_col")==0),lit("before")).\
+    when((col("event")== 0) & (col("temp_col")==1),lit("after")).\
+      otherwise(lit("event"))).\
+        drop("temp_col")
+df_windw.show(100,False)
+
+#order by inner rank
+#https://stackoverflow.com/questions/76256099/pyspark-window-function-to-generate-rank-on-data-based-on-sequence-of-the-value
+from pyspark.sql import *
+from pyspark.sql.functions import *
+simpleData = [
+    ("X", 11, "typeA"),
+    ("X", 12, "typeA"),
+    ("X", 13, "typeB"),
+    ("X", 14, "typeB"),
+    ("X", 15, "typeC"),
+    ("X", 16, "typeC"),
+    ("Y", 17, "typeA"),
+    ("Y", 18, "typeA"),
+    ("Y", 19, "typeB"),
+    ("Y", 20, "typeB"),
+    ("Y", 21, "typeC"),
+    ("Y", 22, "typeC"),
+]
+
+schema = ["A", "B", "type"]
+df = spark.createDataFrame(data=simpleData, schema=schema)
+
+w1 = Window.partitionBy("A", "type").orderBy("B")
+
+dfWithInnerRank = df.withColumn("innerRank", sum(lit(1)).over(w1))
+
+w2 = Window.partitionBy("A").orderBy("innerRank")
+
+dfWithInnerRank.withColumn("rank", row_number().over(w2)).show()
+# +---+---+-----+---------+----+
+# |  A|  B| type|innerRank|rank|
+# +---+---+-----+---------+----+
+# |  X| 11|typeA|        1|   1|
+# |  X| 13|typeB|        1|   2|
+# |  X| 15|typeC|        1|   3|
+# |  X| 12|typeA|        2|   4|
+# |  X| 14|typeB|        2|   5|
+# |  X| 16|typeC|        2|   6|
+# |  Y| 17|typeA|        1|   1|
+# |  Y| 19|typeB|        1|   2|
+# |  Y| 21|typeC|        1|   3|
+# |  Y| 18|typeA|        2|   4|
+# |  Y| 20|typeB|        2|   5|
+# |  Y| 22|typeC|        2|   6|
+# +---+---+-----+---------+----+
+
+
+#endswith spark function
+address = [(1,"14851 Jeffrey Rd","DE"),(2,"43421 Margarita St","NY"),(3,"13111 Siemon Ave","CA"),(4,"110 South Ave","FL")]
+df= spark.createDataFrame(address,["id","address","state"])
+df.show()
+df.withColumn("address",
+when(col("address").endswith("Rd"),regexp_replace(col("address"),"Rd","Road"))\
+.when(col("address").endswith("St"),regexp_replace(col("address"),"St","Street"))\
+.when(col("address").endswith("Ave"),regexp_replace(col("address"),"Ave","Avenue"))\
+.otherwise(col("address")))\
+.show(10,False)
+
+
+#endswith spark function
+from pyspark.sql.functions import *
+df = spark.createDataFrame([('hp1_model1_min',1),('hp1_model1_pressure',1),('hp1_model3_max',1)],['itemName','itemValue'])
+df.filter((col("itemname").endswith('min')) | (col("itemname").endswith('pressure'))).show(10,False)
+
+#https://adb-2809981990316081.1.azuredatabricks.net/?o=2809981990316081#notebook/2118714825770110/command/1831513359037945
+#concat_ws all columns
+from pyspark.sql.functions import *
+df = spark.createDataFrame([(1, "foo"),(2, "bar"),],["id", "label"])
+
+df.withColumn("temp", concat_ws(" ", *df.columns)).groupBy(lit(1)).agg(array_join(collect_list(col("temp"))," ").alias("new_column")).\
+  drop("1").\
+  show(10,False)
+
+#https://stackoverflow.com/questions/76280511/pyspark-group-rows-with-sequential-numbers-with-duplicates#76280870
+#create new column for adjecent numbers and group them as collect_list
+df = spark.createDataFrame(
+    [(0, 'A'),
+     (1, 'B'),
+     (1, 'C'),
+     (5, 'D'),
+     (8, 'A'),
+     (9, 'F'),
+     (20, 'T'),
+     (20, 'S'),
+     (21, 'C')],
+    ['time_slot', 'customer'])
+window = Window.orderBy("time_slot")
+df = df.withColumn("prev_time_slot", lag(col('time_slot')).over(window))
+df = df.withColumn("isNewSequence", 
+                   (col("time_slot") - col("prev_time_slot") > 1).cast("int"))
+df = df.withColumn("groupId",sum("isNewSequence").over(window))
+df_grouped = df.groupBy("groupId").agg(collect_list("time_slot").alias("grouped_slots"), 
+                                        collect_list("customer").alias("grouped_customers"))
+df_grouped.show(truncate=False)
+
+# +-------+-------------+-----------------+
+# |groupId|grouped_slots|grouped_customers|
+# +-------+-------------+-----------------+
+# |null   |[0]          |[A]              |
+# |0      |[1, 1]       |[C, B]           |
+# |1      |[5]          |[D]              |
+# |2      |[8, 9]       |[A, F]           |
+# |3      |[20, 20, 21] |[T, S, C]        |
+# +-------+-------------+-----------------+
