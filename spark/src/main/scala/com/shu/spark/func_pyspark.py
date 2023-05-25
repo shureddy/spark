@@ -734,3 +734,57 @@ df1= df.withColumn("temp", concat_ws(" ", *df.columns)).groupBy(lit(1)).agg(arra
 print(df1.select(struct(col("new_column")).alias("new")).toJSON().collect()[0])
 #{"new":{"new_column":"1 foo 2 bar"}}
 df.coalesce(1).write.format("text").option("header", "false").save("output.txt")
+
+#https://stackoverflow.com/questions/76313809/spark-handle-json-with-dynamically-named-subschema/76314739#76314739
+#Spark handle json with dynamically named subschema
+#changing column names to make it unique
+from pyspark.sql.functions import *
+json_string = """{
+    "10712": {
+        "id": "10712",
+        "age": 27,
+        "gender": "male"
+    },
+    "217": {
+        "id": "217",
+        "age": 60,
+        "gender": "female"
+    }
+}"""
+
+df.printSchema()
+df = spark.read.json(sc.parallelize([json_string]), multiLine=True)
+cols = [ f"`{i}`" for i in df.columns]
+col_len = len(cols)
+stack_expr = ','.join(cols)
+df.select(expr(f"stack({col_len},{stack_expr})")).\
+  groupBy(lit(1)).\
+    agg(to_json(collect_list(col("col0"))).alias("user")).drop("1").\
+      show(10,False)
+
+df.select(expr(f"stack({col_len},{stack_expr})")).\
+  groupBy(lit(1)).\
+    agg(collect_list(col("col0")).alias("user")).drop("1").\
+      printSchema()
+# root
+#  |-- 10712: struct (nullable = true)
+#  |    |-- age: long (nullable = true)
+#  |    |-- gender: string (nullable = true)
+#  |    |-- id: string (nullable = true)
+#  |-- 217: struct (nullable = true)
+#  |    |-- age: long (nullable = true)
+#  |    |-- gender: string (nullable = true)
+#  |    |-- id: string (nullable = true)
+
+# +---------------------------------------------------------------------------------+
+# |user                                                                             |
+# +---------------------------------------------------------------------------------+
+# |[{"age":27,"gender":"male","id":"10712"},{"age":60,"gender":"female","id":"217"}]|
+# +---------------------------------------------------------------------------------+
+
+# root
+#  |-- user: array (nullable = false)
+#  |    |-- element: struct (containsNull = false)
+#  |    |    |-- age: long (nullable = true)
+#  |    |    |-- gender: string (nullable = true)
+
