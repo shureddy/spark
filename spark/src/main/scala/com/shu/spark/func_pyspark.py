@@ -788,3 +788,30 @@ df.select(expr(f"stack({col_len},{stack_expr})")).\
 #  |    |    |-- age: long (nullable = true)
 #  |    |    |-- gender: string (nullable = true)
 
+#pivot on columns and use inline
+#https://stackoverflow.com/questions/76335205/pyspark-transpose-grouped-data-frame
+from pyspark.sql.functions import *
+df = spark.createDataFrame([('one','word1'),
+('one','word2'),
+('one','word3'),
+('two','word4'),
+('two','word5'),
+('two','word6'),
+('three','word7'),
+('three','word8'),
+('three','word9')],['group','words'])
+
+
+df = (df.groupby(lit('words').alias('group'))
+      .pivot('group')
+      .agg(collect_list('words')))
+pivot_cols = [x for x in df.columns if x != 'group']
+df = df.select('group', expr(f"inline(arrays_zip({','.join(pivot_cols)}))"))
+df.show(100,False)
+#+-----+-----+-----+-----+
+#|group|one  |three|two  |
+#+-----+-----+-----+-----+
+#|words|word2|word9|word5|
+#|words|word3|word7|word4|
+#|words|word1|word8|word6|
+#+-----+-----+-----+-----+
