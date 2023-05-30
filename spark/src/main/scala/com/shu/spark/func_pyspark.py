@@ -815,3 +815,20 @@ df.show(100,False)
 #|words|word3|word7|word4|
 #|words|word1|word8|word6|
 #+-----+-----+-----+-----+
+#https://stackoverflow.com/questions/76362187/how-parse-pyspark-column-with-value-as-a-string-to-columns
+#str_to_map and get columns using the map
+#Try with str_to_map function to create the map<string,string> then use dynamic expression to get the items from the map.
+from pyspark.sql.functions import *
+df = spark.createDataFrame([(1,'messi','Club:PSG,Age:35,birthplace:Arg')],['id','name','add_info'])
+
+df= df.withColumn("map_add_info",expr("""str_to_map(add_info,',',':')"""))
+
+#create dynamic expression for the map_keys
+cols = [col("id"), col("name")] + list(map(lambda f: col("map_add_info").getItem(f).alias(str(f)),["Club", "Age", "birthplace"]))
+
+df.select(cols).show(10,False)
+#+---+-----+----+---+----------+
+#|id |name |Club|Age|birthplace|
+#+---+-----+----+---+----------+
+#|1  |messi|PSG |35 |Arg       |
+#+---+-----+----+---+----------+
