@@ -832,3 +832,10 @@ df.select(cols).show(10,False)
 #+---+-----+----+---+----------+
 #|1  |messi|PSG |35 |Arg       |
 #+---+-----+----+---+----------+
+
+#create dynamic and statement for filter clause
+from functools import reduce
+
+cond = reduce(lambda a, b: a & b, [func.col(c).isNull() for c in data_sdf.columns])
+
+data_sdf.filter(cond)
