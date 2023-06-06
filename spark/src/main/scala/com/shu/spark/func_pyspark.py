@@ -874,4 +874,12 @@ jsn = """{
 
 df = spark.read.json(sc.parallelize([jsn]),  multiLine=True)
 
-df.select(explode(array(*[struct(lit(s).alias("Keys"),col(f"data.{s}.string_value").alias("Values"),)for s in df.select("data.*").columns]))).select("col.*").show(10,False)
+df.select(explode(array(*[struct(lit(s).alias("Keys"),col(f"data.{s}.string_value").alias("Values"),)for s in df.select("data.*").columns]))).\
+  select("col.*").show(10,False)
+# +-----+-------+
+# |Keys |Values |
+# +-----+-------+
+# |key_1|value_1|
+# |key_2|value_2|
+# |key_3|value_3|
+# +-----+-------+
