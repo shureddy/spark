@@ -839,3 +839,36 @@ from functools import reduce
 cond = reduce(lambda a, b: a & b, [func.col(c).isNull() for c in data_sdf.columns])
 
 data_sdf.filter(cond)
+
+#remove null array elements using array_except, array_union
+from pyspark.sql.functions import *
+df = spark.createDataFrame([(0,[None],[1]),(7,[6],[None]),(6,[6],[7,8])],['id','c1','c2'])
+df.withColumn("res",expr("""array_except(array_union(c1,c2),array(null))""")).show()
+
+#parallelize json and extract values as strings
+#flatmap, rdd,collect, lambda
+json = """[{"ECID":100017056,"FIRST_NAME":"Ioannis","LAST_NAME":"CHATZIZYRLIS","TITLE":"Mr","GENDER":"M","DATE_OF_BIRTH":"1995-04-14","PLACE_OF_BIRTH":"Greece","COUNTRY_OF_BIRTH":"GR","NATIONALITY":"GR","RESIDENCE":"GR"}]"""
+df = spark.read.json(sc.parallelize([json]), multiLine=True)
+print(df.columns)
+print(df.rdd.flatMap(lambda x: x).collect())
+
+#unnest the struct into new columns dynamically
+#create struct of arrays and explode dynamically.
+from pyspark.sql.functions import *
+jsn = """{
+    "data": {
+        "key_1": {
+            "string_value": "value_1"
+        },
+        "key_2": {
+            "string_value": "value_2"
+        },
+        "key_3": {
+            "string_value": "value_3"
+        }
+    }
+}"""
+
+df = spark.read.json(sc.parallelize([jsn]),  multiLine=True)
+
+df.select(explode(array(*[struct(lit(s).alias("Keys"),col(f"data.{s}.string_value").alias("Values"),)for s in df.select("data.*").columns]))).select("col.*").show(10,False)
