@@ -847,10 +847,13 @@ df.withColumn("res",expr("""array_except(array_union(c1,c2),array(null))""")).sh
 
 #parallelize json and extract values as strings
 #flatmap, rdd,collect, lambda
+#create dictionary from each row
 json = """[{"ECID":100017056,"FIRST_NAME":"Ioannis","LAST_NAME":"CHATZIZYRLIS","TITLE":"Mr","GENDER":"M","DATE_OF_BIRTH":"1995-04-14","PLACE_OF_BIRTH":"Greece","COUNTRY_OF_BIRTH":"GR","NATIONALITY":"GR","RESIDENCE":"GR"}]"""
 df = spark.read.json(sc.parallelize([json]), multiLine=True)
 print(df.columns)
 print(df.rdd.flatMap(lambda x: x).collect())
+print([r.asDict() for r in df.collect()])
+#[{'COUNTRY_OF_BIRTH': 'GR', 'DATE_OF_BIRTH': '1995-04-14', 'ECID': 100017056, 'FIRST_NAME': 'Ioannis', 'GENDER': 'M', 'LAST_NAME': 'CHATZIZYRLIS', 'NATIONALITY': 'GR', 'PLACE_OF_BIRTH': 'Greece', 'RESIDENCE': 'GR', 'TITLE': 'Mr'}]
 
 #unnest the struct into new columns dynamically
 #create struct of arrays and explode dynamically.
