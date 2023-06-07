@@ -883,3 +883,35 @@ df.select(explode(array(*[struct(lit(s).alias("Keys"),col(f"data.{s}.string_valu
 # |key_2|value_2|
 # |key_3|value_3|
 # +-----+-------+
+
+#https://stackoverflow.com/questions/76426431/converting-string-to-timestamp-in-pyspark-or-sparksql
+#timestamp with seven micro seconds
+spark.sql("""select  to_timestamp('05/30/2023 20:28:41.6487480Z','MM/dd/yyyy HH:mm:ss.SSSSSSSX') as ts""").show(10,False)
+#+--------------------------+
+#|ts                        |
+#+--------------------------+
+#|2023-05-30 20:28:41.648748|
+#+--------------------------+
+
+#pivot multiple columns with alias name to it
+#https://stackoverflow.com/questions/76425949/pyspark-pivot-table-with-multiple-columns
+df = spark.createDataFrame([('ABC','1','c','q1','1','2','3'),('ABC','1','c','q2','4','5','6')],['id','test_id','test_status','key','score1','score2','score3'])
+df.show(10,False)
+df.groupBy("id","test_id","test_status").pivot("key").agg(first(col("score1")).alias("score1"),first(col("score2")).alias("score2"),first(col("score3")).alias("score3")).show(10,False)
+#another way
+df = (df.groupby('id', 'test_id', 'test_status')
+      .pivot('key')
+      .agg(*[F.first(x).alias(x) for x in ['score1', 'score2', 'score3']]))
+#input
+#+---+-------+-----------+---+------+------+------+
+#|id |test_id|test_status|key|score1|score2|score3|
+#+---+-------+-----------+---+------+------+------+
+#|ABC|1      |c          |q1 |1     |2     |3     |
+#|ABC|1      |c          |q2 |4     |5     |6     |
+#+---+-------+-----------+---+------+------+------+
+
+#+---+-------+-----------+---------+---------+---------+---------+---------+---------+
+#|id |test_id|test_status|q1_score1|q1_score2|q1_score3|q2_score1|q2_score2|q2_score3|
+#+---+-------+-----------+---------+---------+---------+---------+---------+---------+
+#|ABC|1      |c          |1        |2        |3        |4        |5        |6        |
+#+---+-------+-----------+---------+---------+---------+---------+---------+---------+
