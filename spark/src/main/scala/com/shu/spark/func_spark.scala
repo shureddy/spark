@@ -1034,3 +1034,17 @@ object shared {
       return "nothing"
   }
 }
+
+
+%scala
+import org.apache.spark.sql.functions._
+val df = Seq((1,-23,-999)).toDF("a","b","c")
+//df.select(df.columns.head,df.columns.tail:_*).show()
+val df1 = df
+  .columns
+  .foldLeft(df) { (df, colName) =>
+    df
+      .withColumn(colName, when(col(colName).cast("int")<0,lit(0)).otherwise(col(colName)))
+  }
+
+df1.show(10,false)

@@ -915,3 +915,92 @@ df = (df.groupby('id', 'test_id', 'test_status')
 #+---+-------+-----------+---------+---------+---------+---------+---------+---------+
 #|ABC|1      |c          |1        |2        |3        |4        |5        |6        |
 #+---+-------+-----------+---------+---------+---------+---------+---------+---------+
+
+#get size of the record
+import sys
+rows = df.collect()
+for rw in rows:
+    print(str((sys.getsizeof(''.join(rw[0:]))))+" bytes")
+
+#replace using regexp_replace with expr by replacing the 
+from pyspark.sql.functions import *
+df = spark.createDataFrame([('GaryBrooks','[TM="GaryBrooks"]','My name is GaryBrooks.','yes'),('Partner time','[TM="Partner time"]','The Partnertime series was good.','yes')],['trademarkname','tm_value','DESCRIPTION_TEXT','Compare'])
+df.withColumn("output", expr('regexp_replace(DESCRIPTION_TEXT,"(GaryBrooks|Partnertime)",tm_value)')).\
+show(10,False)
+
+#pivot and posexplode
+from pyspark.sql.functions import *
+
+df = spark.createDataFrame([(["Red","Blue","Green","Black"],),(['blue','green'],)],['colorList'])
+
+df =df.withColumn("colorList", expr("transform(colorlist, x-> lower(x))")).\
+  select("colorList",posexplode(col("colorlist"))).\
+    groupBy("colorList").pivot("col").agg(first(col("pos")))
+
+#withColumn("pos", col("pos")+1).\
+
+df.select('colorList',
+          *[when(col(f"{f}").isNull(),lit(0)).otherwise(lit(1)).alias(f) for f in df.columns if f not in ['colorList']]).\
+  show(10,False)
+
+# +-------------------------+-----+----+-----+---+
+# |colorList                |black|blue|green|red|
+# +-------------------------+-----+----+-----+---+
+# |[blue, green]            |0    |1   |1    |0  |
+# |[red, blue, green, black]|1    |1   |1    |1  |
+# +-------------------------+-----+----+-----+---+
+
+
+#remove dups from the data
+from pyspark.sql.functions import *
+from pyspark.sql import *
+w = Window.partitionBy(lit(1))
+df = spark.createDataFrame(
+    [
+        ("abc", "ddc", 1, 4.5),
+        ("abb", "ddc", 4, 9.1),
+        ("baa", "abc", 2, 3.2),
+        ("abb", "bca", 1, 5.1),
+        ("ddc", "abc", 2, 3.6),
+        ("abc", "baa", 3, 2.6)
+    ],
+    ["col_a", "col_b", "col_c", "col_d"]
+)
+
+df.withColumn("cs_col_b", collect_set(col("col_b")).over(w)).\
+  withColumn("cs_col_a", collect_set(col("col_a")).over(w)).\
+    withColumn("overlap_a", arrays_overlap(array("col_a"), "cs_col_b")).\
+      withColumn("overlap_b", arrays_overlap(array("col_b"), "cs_col_a")).\
+        filter(col("overlap_a") & col("overlap_b")).\
+          drop(*['cs_col_b','cs_col_a','overlap_a','overlap_b']).\
+    show(10,False)
+# +-----+-----+-----+-----+
+# |col_a|col_b|col_c|col_d|
+# +-----+-----+-----+-----+
+# |abc  |ddc  |1    |4.5  |
+# |baa  |abc  |2    |3.2  |
+# |ddc  |abc  |2    |3.6  |
+# |abc  |baa  |3    |2.6  |
+# +-----+-----+-----+-----+
+
+
+#cast the dataframe type based on structtype schema.
+from pyspark.sql.functions import *
+from pyspark.sql.types import *
+
+df = spark.createDataFrame([('1','1.9','23.344')],['i','j','k'])
+print("input Schema")
+df.printSchema()
+
+sch = StructType([ \
+    StructField("i",IntegerType(),True), \
+      StructField("j",DecimalType(),True), \
+        StructField("k",DoubleType(),True)
+  ])
+
+for f in sch.fields:
+  df= df.withColumn(f"{f.name}",col(f"{f.name}").cast(f.dataType))
+  # print(f.dataType,f.name)
+print("output Schema")
+df.printSchema()
+df.show(10,False)
