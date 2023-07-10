@@ -590,3 +590,417 @@ df.union(
       expr("transform(LineItems, x -> named_struct('ItemID', x.ItemID, 'Name', x.Name, 'DiscountRate', null))")
     )
 )
+
+#https://stackoverflow.com/questions/76247075/how-can-i-label-rows-before-and-after-an-event-in-pyspark
+#window find event and mark all the item before as before
+#after the event happend as after and event as event using window
+df = spark.createDataFrame([(1,1657610298,0),
+(1,1657610299,0),
+(1,1657610300,0),
+(1,1657610301,1),
+(1,1657610302,0),
+(1,1657610303,0),
+(1,1657610304,0),
+(2,1657610298,0),
+(2,1657610299,0),
+(2,1657610300,0),
+(2,1657610301,1),
+(2,1657610302,0),
+(2,1657610303,0),
+(2,1657610304,0)],['ID','timestamp','event'])
+from pyspark.sql import *
+from pyspark.sql.functions import *
+df_windw = df.withColumn("temp_col",max(col("Event")).over(Window.partitionBy('ID').orderBy("timestamp").rowsBetween(Window.unboundedPreceding, Window.currentRow))).\
+  withColumn("type2", when((col("event")== 0) & (col("temp_col")==0),lit("before")).\
+    when((col("event")== 0) & (col("temp_col")==1),lit("after")).\
+      otherwise(lit("event"))).\
+        drop("temp_col")
+df_windw.show(100,False)
+
+#order by inner rank
+#https://stackoverflow.com/questions/76256099/pyspark-window-function-to-generate-rank-on-data-based-on-sequence-of-the-value
+from pyspark.sql import *
+from pyspark.sql.functions import *
+simpleData = [
+    ("X", 11, "typeA"),
+    ("X", 12, "typeA"),
+    ("X", 13, "typeB"),
+    ("X", 14, "typeB"),
+    ("X", 15, "typeC"),
+    ("X", 16, "typeC"),
+    ("Y", 17, "typeA"),
+    ("Y", 18, "typeA"),
+    ("Y", 19, "typeB"),
+    ("Y", 20, "typeB"),
+    ("Y", 21, "typeC"),
+    ("Y", 22, "typeC"),
+]
+
+schema = ["A", "B", "type"]
+df = spark.createDataFrame(data=simpleData, schema=schema)
+
+w1 = Window.partitionBy("A", "type").orderBy("B")
+
+dfWithInnerRank = df.withColumn("innerRank", sum(lit(1)).over(w1))
+
+w2 = Window.partitionBy("A").orderBy("innerRank")
+
+dfWithInnerRank.withColumn("rank", row_number().over(w2)).show()
+# +---+---+-----+---------+----+
+# |  A|  B| type|innerRank|rank|
+# +---+---+-----+---------+----+
+# |  X| 11|typeA|        1|   1|
+# |  X| 13|typeB|        1|   2|
+# |  X| 15|typeC|        1|   3|
+# |  X| 12|typeA|        2|   4|
+# |  X| 14|typeB|        2|   5|
+# |  X| 16|typeC|        2|   6|
+# |  Y| 17|typeA|        1|   1|
+# |  Y| 19|typeB|        1|   2|
+# |  Y| 21|typeC|        1|   3|
+# |  Y| 18|typeA|        2|   4|
+# |  Y| 20|typeB|        2|   5|
+# |  Y| 22|typeC|        2|   6|
+# +---+---+-----+---------+----+
+
+
+#endswith spark function
+address = [(1,"14851 Jeffrey Rd","DE"),(2,"43421 Margarita St","NY"),(3,"13111 Siemon Ave","CA"),(4,"110 South Ave","FL")]
+df= spark.createDataFrame(address,["id","address","state"])
+df.show()
+df.withColumn("address",
+when(col("address").endswith("Rd"),regexp_replace(col("address"),"Rd","Road"))\
+.when(col("address").endswith("St"),regexp_replace(col("address"),"St","Street"))\
+.when(col("address").endswith("Ave"),regexp_replace(col("address"),"Ave","Avenue"))\
+.otherwise(col("address")))\
+.show(10,False)
+
+
+#endswith spark function
+from pyspark.sql.functions import *
+df = spark.createDataFrame([('hp1_model1_min',1),('hp1_model1_pressure',1),('hp1_model3_max',1)],['itemName','itemValue'])
+df.filter((col("itemname").endswith('min')) | (col("itemname").endswith('pressure'))).show(10,False)
+
+#https://adb-2809981990316081.1.azuredatabricks.net/?o=2809981990316081#notebook/2118714825770110/command/1831513359037945
+#concat_ws all columns
+from pyspark.sql.functions import *
+df = spark.createDataFrame([(1, "foo"),(2, "bar"),],["id", "label"])
+
+df.withColumn("temp", concat_ws(" ", *df.columns)).groupBy(lit(1)).agg(array_join(collect_list(col("temp"))," ").alias("new_column")).\
+  drop("1").\
+  show(10,False)
+
+#https://stackoverflow.com/questions/76280511/pyspark-group-rows-with-sequential-numbers-with-duplicates#76280870
+#create new column for adjecent numbers and group them as collect_list
+df = spark.createDataFrame(
+    [(0, 'A'),
+     (1, 'B'),
+     (1, 'C'),
+     (5, 'D'),
+     (8, 'A'),
+     (9, 'F'),
+     (20, 'T'),
+     (20, 'S'),
+     (21, 'C')],
+    ['time_slot', 'customer'])
+window = Window.orderBy("time_slot")
+df = df.withColumn("prev_time_slot", lag(col('time_slot')).over(window))
+df = df.withColumn("isNewSequence", 
+                   (col("time_slot") - col("prev_time_slot") > 1).cast("int"))
+df = df.withColumn("groupId",sum("isNewSequence").over(window))
+df_grouped = df.groupBy("groupId").agg(collect_list("time_slot").alias("grouped_slots"), 
+                                        collect_list("customer").alias("grouped_customers"))
+df_grouped.show(truncate=False)
+
+# +-------+-------------+-----------------+
+# |groupId|grouped_slots|grouped_customers|
+# +-------+-------------+-----------------+
+# |null   |[0]          |[A]              |
+# |0      |[1, 1]       |[C, B]           |
+# |1      |[5]          |[D]              |
+# |2      |[8, 9]       |[A, F]           |
+# |3      |[20, 20, 21] |[T, S, C]        |
+# +-------+-------------+-----------------+
+
+
+#create json output with out column name
+#https://stackoverflow.com/questions/76280090/how-do-i-read-a-json-as-a-string-or-dictionary-from-a-column-in-spark-dataframe
+#save as text file to remove the header false.
+from pyspark.sql.functions import *
+df = spark.createDataFrame([(1, "foo"),(2, "bar"),],["id", "label"])
+
+df1= df.withColumn("temp", concat_ws(" ", *df.columns)).groupBy(lit(1)).agg(array_join(collect_list(col("temp"))," ").alias("new_column")).drop("1")
+
+print(df1.select(struct(col("new_column")).alias("new")).toJSON().collect()[0])
+#{"new":{"new_column":"1 foo 2 bar"}}
+df.coalesce(1).write.format("text").option("header", "false").save("output.txt")
+
+#https://stackoverflow.com/questions/76313809/spark-handle-json-with-dynamically-named-subschema/76314739#76314739
+#Spark handle json with dynamically named subschema
+#changing column names to make it unique
+from pyspark.sql.functions import *
+json_string = """{
+    "10712": {
+        "id": "10712",
+        "age": 27,
+        "gender": "male"
+    },
+    "217": {
+        "id": "217",
+        "age": 60,
+        "gender": "female"
+    }
+}"""
+
+df.printSchema()
+df = spark.read.json(sc.parallelize([json_string]), multiLine=True)
+cols = [ f"`{i}`" for i in df.columns]
+col_len = len(cols)
+stack_expr = ','.join(cols)
+df.select(expr(f"stack({col_len},{stack_expr})")).\
+  groupBy(lit(1)).\
+    agg(to_json(collect_list(col("col0"))).alias("user")).drop("1").\
+      show(10,False)
+
+df.select(expr(f"stack({col_len},{stack_expr})")).\
+  groupBy(lit(1)).\
+    agg(collect_list(col("col0")).alias("user")).drop("1").\
+      printSchema()
+# root
+#  |-- 10712: struct (nullable = true)
+#  |    |-- age: long (nullable = true)
+#  |    |-- gender: string (nullable = true)
+#  |    |-- id: string (nullable = true)
+#  |-- 217: struct (nullable = true)
+#  |    |-- age: long (nullable = true)
+#  |    |-- gender: string (nullable = true)
+#  |    |-- id: string (nullable = true)
+
+# +---------------------------------------------------------------------------------+
+# |user                                                                             |
+# +---------------------------------------------------------------------------------+
+# |[{"age":27,"gender":"male","id":"10712"},{"age":60,"gender":"female","id":"217"}]|
+# +---------------------------------------------------------------------------------+
+
+# root
+#  |-- user: array (nullable = false)
+#  |    |-- element: struct (containsNull = false)
+#  |    |    |-- age: long (nullable = true)
+#  |    |    |-- gender: string (nullable = true)
+
+#pivot on columns and use inline
+#https://stackoverflow.com/questions/76335205/pyspark-transpose-grouped-data-frame
+from pyspark.sql.functions import *
+df = spark.createDataFrame([('one','word1'),
+('one','word2'),
+('one','word3'),
+('two','word4'),
+('two','word5'),
+('two','word6'),
+('three','word7'),
+('three','word8'),
+('three','word9')],['group','words'])
+
+
+df = (df.groupby(lit('words').alias('group'))
+      .pivot('group')
+      .agg(collect_list('words')))
+pivot_cols = [x for x in df.columns if x != 'group']
+df = df.select('group', expr(f"inline(arrays_zip({','.join(pivot_cols)}))"))
+df.show(100,False)
+#+-----+-----+-----+-----+
+#|group|one  |three|two  |
+#+-----+-----+-----+-----+
+#|words|word2|word9|word5|
+#|words|word3|word7|word4|
+#|words|word1|word8|word6|
+#+-----+-----+-----+-----+
+#https://stackoverflow.com/questions/76362187/how-parse-pyspark-column-with-value-as-a-string-to-columns
+#str_to_map and get columns using the map
+#Try with str_to_map function to create the map<string,string> then use dynamic expression to get the items from the map.
+from pyspark.sql.functions import *
+df = spark.createDataFrame([(1,'messi','Club:PSG,Age:35,birthplace:Arg')],['id','name','add_info'])
+
+df= df.withColumn("map_add_info",expr("""str_to_map(add_info,',',':')"""))
+
+#create dynamic expression for the map_keys
+cols = [col("id"), col("name")] + list(map(lambda f: col("map_add_info").getItem(f).alias(str(f)),["Club", "Age", "birthplace"]))
+
+df.select(cols).show(10,False)
+#+---+-----+----+---+----------+
+#|id |name |Club|Age|birthplace|
+#+---+-----+----+---+----------+
+#|1  |messi|PSG |35 |Arg       |
+#+---+-----+----+---+----------+
+
+#create dynamic and statement for filter clause
+from functools import reduce
+
+cond = reduce(lambda a, b: a & b, [func.col(c).isNull() for c in data_sdf.columns])
+
+data_sdf.filter(cond)
+
+#remove null array elements using array_except, array_union
+from pyspark.sql.functions import *
+df = spark.createDataFrame([(0,[None],[1]),(7,[6],[None]),(6,[6],[7,8])],['id','c1','c2'])
+df.withColumn("res",expr("""array_except(array_union(c1,c2),array(null))""")).show()
+
+#parallelize json and extract values as strings
+#flatmap, rdd,collect, lambda
+#create dictionary from each row
+json = """[{"ECID":100017056,"FIRST_NAME":"Ioannis","LAST_NAME":"CHATZIZYRLIS","TITLE":"Mr","GENDER":"M","DATE_OF_BIRTH":"1995-04-14","PLACE_OF_BIRTH":"Greece","COUNTRY_OF_BIRTH":"GR","NATIONALITY":"GR","RESIDENCE":"GR"}]"""
+df = spark.read.json(sc.parallelize([json]), multiLine=True)
+print(df.columns)
+print(df.rdd.flatMap(lambda x: x).collect())
+print([r.asDict() for r in df.collect()])
+#[{'COUNTRY_OF_BIRTH': 'GR', 'DATE_OF_BIRTH': '1995-04-14', 'ECID': 100017056, 'FIRST_NAME': 'Ioannis', 'GENDER': 'M', 'LAST_NAME': 'CHATZIZYRLIS', 'NATIONALITY': 'GR', 'PLACE_OF_BIRTH': 'Greece', 'RESIDENCE': 'GR', 'TITLE': 'Mr'}]
+
+#unnest the struct into new columns dynamically
+#create struct of arrays and explode dynamically.
+from pyspark.sql.functions import *
+jsn = """{
+    "data": {
+        "key_1": {
+            "string_value": "value_1"
+        },
+        "key_2": {
+            "string_value": "value_2"
+        },
+        "key_3": {
+            "string_value": "value_3"
+        }
+    }
+}"""
+
+df = spark.read.json(sc.parallelize([jsn]),  multiLine=True)
+
+df.select(explode(array(*[struct(lit(s).alias("Keys"),col(f"data.{s}.string_value").alias("Values"),)for s in df.select("data.*").columns]))).\
+  select("col.*").show(10,False)
+# +-----+-------+
+# |Keys |Values |
+# +-----+-------+
+# |key_1|value_1|
+# |key_2|value_2|
+# |key_3|value_3|
+# +-----+-------+
+
+#https://stackoverflow.com/questions/76426431/converting-string-to-timestamp-in-pyspark-or-sparksql
+#timestamp with seven micro seconds
+spark.sql("""select  to_timestamp('05/30/2023 20:28:41.6487480Z','MM/dd/yyyy HH:mm:ss.SSSSSSSX') as ts""").show(10,False)
+#+--------------------------+
+#|ts                        |
+#+--------------------------+
+#|2023-05-30 20:28:41.648748|
+#+--------------------------+
+
+#pivot multiple columns with alias name to it
+#https://stackoverflow.com/questions/76425949/pyspark-pivot-table-with-multiple-columns
+df = spark.createDataFrame([('ABC','1','c','q1','1','2','3'),('ABC','1','c','q2','4','5','6')],['id','test_id','test_status','key','score1','score2','score3'])
+df.show(10,False)
+df.groupBy("id","test_id","test_status").pivot("key").agg(first(col("score1")).alias("score1"),first(col("score2")).alias("score2"),first(col("score3")).alias("score3")).show(10,False)
+#another way
+df = (df.groupby('id', 'test_id', 'test_status')
+      .pivot('key')
+      .agg(*[F.first(x).alias(x) for x in ['score1', 'score2', 'score3']]))
+#input
+#+---+-------+-----------+---+------+------+------+
+#|id |test_id|test_status|key|score1|score2|score3|
+#+---+-------+-----------+---+------+------+------+
+#|ABC|1      |c          |q1 |1     |2     |3     |
+#|ABC|1      |c          |q2 |4     |5     |6     |
+#+---+-------+-----------+---+------+------+------+
+
+#+---+-------+-----------+---------+---------+---------+---------+---------+---------+
+#|id |test_id|test_status|q1_score1|q1_score2|q1_score3|q2_score1|q2_score2|q2_score3|
+#+---+-------+-----------+---------+---------+---------+---------+---------+---------+
+#|ABC|1      |c          |1        |2        |3        |4        |5        |6        |
+#+---+-------+-----------+---------+---------+---------+---------+---------+---------+
+
+#get size of the record
+import sys
+rows = df.collect()
+for rw in rows:
+    print(str((sys.getsizeof(''.join(rw[0:]))))+" bytes")
+
+#replace using regexp_replace with expr by replacing the 
+from pyspark.sql.functions import *
+df = spark.createDataFrame([('GaryBrooks','[TM="GaryBrooks"]','My name is GaryBrooks.','yes'),('Partner time','[TM="Partner time"]','The Partnertime series was good.','yes')],['trademarkname','tm_value','DESCRIPTION_TEXT','Compare'])
+df.withColumn("output", expr('regexp_replace(DESCRIPTION_TEXT,"(GaryBrooks|Partnertime)",tm_value)')).\
+show(10,False)
+
+#pivot and posexplode
+from pyspark.sql.functions import *
+
+df = spark.createDataFrame([(["Red","Blue","Green","Black"],),(['blue','green'],)],['colorList'])
+
+df =df.withColumn("colorList", expr("transform(colorlist, x-> lower(x))")).\
+  select("colorList",posexplode(col("colorlist"))).\
+    groupBy("colorList").pivot("col").agg(first(col("pos")))
+
+#withColumn("pos", col("pos")+1).\
+
+df.select('colorList',
+          *[when(col(f"{f}").isNull(),lit(0)).otherwise(lit(1)).alias(f) for f in df.columns if f not in ['colorList']]).\
+  show(10,False)
+
+# +-------------------------+-----+----+-----+---+
+# |colorList                |black|blue|green|red|
+# +-------------------------+-----+----+-----+---+
+# |[blue, green]            |0    |1   |1    |0  |
+# |[red, blue, green, black]|1    |1   |1    |1  |
+# +-------------------------+-----+----+-----+---+
+
+
+#remove dups from the data
+from pyspark.sql.functions import *
+from pyspark.sql import *
+w = Window.partitionBy(lit(1))
+df = spark.createDataFrame(
+    [
+        ("abc", "ddc", 1, 4.5),
+        ("abb", "ddc", 4, 9.1),
+        ("baa", "abc", 2, 3.2),
+        ("abb", "bca", 1, 5.1),
+        ("ddc", "abc", 2, 3.6),
+        ("abc", "baa", 3, 2.6)
+    ],
+    ["col_a", "col_b", "col_c", "col_d"]
+)
+
+df.withColumn("cs_col_b", collect_set(col("col_b")).over(w)).\
+  withColumn("cs_col_a", collect_set(col("col_a")).over(w)).\
+    withColumn("overlap_a", arrays_overlap(array("col_a"), "cs_col_b")).\
+      withColumn("overlap_b", arrays_overlap(array("col_b"), "cs_col_a")).\
+        filter(col("overlap_a") & col("overlap_b")).\
+          drop(*['cs_col_b','cs_col_a','overlap_a','overlap_b']).\
+    show(10,False)
+# +-----+-----+-----+-----+
+# |col_a|col_b|col_c|col_d|
+# +-----+-----+-----+-----+
+# |abc  |ddc  |1    |4.5  |
+# |baa  |abc  |2    |3.2  |
+# |ddc  |abc  |2    |3.6  |
+# |abc  |baa  |3    |2.6  |
+# +-----+-----+-----+-----+
+
+
+#cast the dataframe type based on structtype schema.
+from pyspark.sql.functions import *
+from pyspark.sql.types import *
+
+df = spark.createDataFrame([('1','1.9','23.344')],['i','j','k'])
+print("input Schema")
+df.printSchema()
+
+sch = StructType([ \
+    StructField("i",IntegerType(),True), \
+      StructField("j",DecimalType(),True), \
+        StructField("k",DoubleType(),True)
+  ])
+
+for f in sch.fields:
+  df= df.withColumn(f"{f.name}",col(f"{f.name}").cast(f.dataType))
+  # print(f.dataType,f.name)
+print("output Schema")
+df.printSchema()
+df.show(10,False)
